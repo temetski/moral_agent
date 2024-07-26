@@ -67,7 +67,7 @@ class FindMilk(gym.Env):
         out[1 + 2*y][2 * x + 1] = utils.colorize("M", "blue", highlight=True)
 
 
-        out[1 + taxi_row][2 * taxi_col + 1] = utils.colorize("P", "magenta", highlight=True)
+        out[1 + 2*taxi_row][2 * taxi_col + 1] = utils.colorize("P", "magenta", highlight=True)
 
         outfile.write("\n".join(["".join(row) for row in out]) + "\n")
         # if self.lastaction is not None:
