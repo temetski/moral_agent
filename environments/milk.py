@@ -1,9 +1,31 @@
 import gymnasium as gym
-from gymnasium import spaces
+from gymnasium import spaces, utils
 import numpy as np
+from typing import Optional
+from io import StringIO
+from contextlib import closing 
+
+corner = "+"
+wall = "|"
+tb_border = f"{corner}-"
+left_cell = f"{wall} "
+def get_map(rows=10, cols=10):
+    MAP = []
+    for row in range(rows):
+        MAP.append(tb_border * cols + corner) 
+        MAP.append(left_cell * cols + wall) 
+    MAP.append(tb_border * cols + corner)
+    return np.asarray(MAP, dtype='c')
 
 class FindMilk(gym.Env):
-    def __init__(self, width=10):
+    metadata = {
+        "render_modes": ["human", "ansi", "rgb_array"],
+        "render_fps": 4,
+    }
+
+    def __init__(self, width=10, render_mode: Optional[str] = None):
+        self.map = get_map(width, width)
+        self.render_mode = render_mode
         self.width = width
         self.milk_pos = (width-1, width-1)
         self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)] # non-crying babies
@@ -14,8 +36,50 @@ class FindMilk(gym.Env):
                                             dtype=np.float32)
         self.action_space = spaces.Discrete(4)
 
-        return
+    def render(self):
+        if self.render_mode is None:
+            assert self.spec is not None
+            gym.logger.warn(
+                "You are calling render method without specifying any render mode. "
+                "You can specify the render_mode at initialization, "
+                f'e.g. gym.make("{self.spec.id}", render_mode="rgb_array")'
+            )
+            return
+        elif self.render_mode in {"ansi", "human"}:
+            return self._render_text()
+        else:  # self.render_mode in {"rgb_array"}:
+            return 
 
+    def _render_text(self):
+        # desc = self.desc.copy().tolist()
+        outfile = StringIO()
+        out = [[c.decode("utf-8") for c in line] for line in self.map.tolist()]
+        taxi_col, taxi_row, _, _, _, _ = self.state
+
+        def ul(x):
+            return "_" if x == " " else x
+
+        for x, y in self.neg_pos: # non-crying babies
+            out[1 + 2*y][2 * x + 1] = utils.colorize("N", "green", bold=True)
+        for x, y in self.pos_pos: # non-crying babies
+            out[1 + 2*y][2 * x + 1] = utils.colorize("C", "red", bold=True)
+        x, y = self.milk_pos
+        out[1 + 2*y][2 * x + 1] = utils.colorize("M", "blue", highlight=True)
+
+
+        out[1 + taxi_row][2 * taxi_col + 1] = utils.colorize("P", "magenta", highlight=True)
+
+        outfile.write("\n".join(["".join(row) for row in out]) + "\n")
+        # if self.lastaction is not None:
+        #     outfile.write(
+        #         f"  ({['South', 'North', 'East', 'West', 'Pickup', 'Dropoff'][self.lastaction]})\n"
+        #     )
+        # else:
+        #     outfile.write("\n")
+
+        with closing(outfile):
+            return outfile.getvalue()
+        
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
@@ -61,6 +125,10 @@ class FindMilk(gym.Env):
 
         if self.done: reward = 20
         else: reward  = -1
+
+        if self.render_mode == "human":
+            self.render()
+
         return self.state, reward, self.done, 0, {}
 
     def log(self):
