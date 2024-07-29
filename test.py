@@ -1,9 +1,8 @@
-# from environments import milk
 import gymnasium as gym
 
 
-env = gym.make('environments.milk:FindMilk', render_mode='ansi', max_episode_steps=1500)
-
+# env = gym.make('environments.milk:FindMilk', render_mode='ansi', max_episode_steps=1500)
+env = gym.make('environments.drive:Driving', render_mode='ansi', max_episode_steps=1500)
 
 state = env.reset()
 done = env.done
