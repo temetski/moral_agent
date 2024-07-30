@@ -1,8 +1,8 @@
 import gymnasium as gym
 
 
-# env = gym.make('environments.milk:FindMilk', render_mode='ansi', max_episode_steps=1500)
-env = gym.make('environments.drive:Driving', render_mode='ansi', max_episode_steps=1500)
+env = gym.make('environments.milk:FindMilk', render_mode='ansi', max_episode_steps=1500)
+# env = gym.make('environments.drive:Driving', render_mode='ansi', max_episode_steps=1500)
 
 state = env.reset()
 done = env.done
@@ -23,20 +23,22 @@ while not done:
     )
 
     steps += 1
-    
+    if steps%10==0:
+        print(env.get_scenario_prompt())
+        print(env.state_as_text())
 env.close()
 
-from IPython.display import clear_output
-from time import sleep
+# from IPython.display import clear_output
+# from time import sleep
 
-def print_frames(frames, dt=0.1):
-    for i, frame in enumerate(frames):
-        clear_output(wait=True)
-        print(frame['frame'])
-        print(f"Timestep: {i + 1}")
-        print(f"State: {frame['state']}")
-        print(f"Action: {frame['action']}")
-        print(f"Reward: {frame['reward']}")
-        sleep(dt)
+# def print_frames(frames, dt=0.1):
+#     for i, frame in enumerate(frames):
+#         clear_output(wait=True)
+#         print(frame['frame'])
+#         print(f"Timestep: {i + 1}")
+#         print(f"State: {frame['state']}")
+#         print(f"Action: {frame['action']}")
+#         print(f"Reward: {frame['reward']}")
+#         sleep(dt)
         
-print_frames(frames, dt=0.01)
+# print_frames(frames, dt=0.01)

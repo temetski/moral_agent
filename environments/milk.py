@@ -31,10 +31,12 @@ class FindMilk(gym.Env):
         self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)] # non-crying babies
         self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)] # crying babies
         self.actions = [0, 1, 2, 3]
-        self.observation_space = spaces.Box(np.array([0,0] + [-len(self.neg_pos)]*4), 
-                                            np.array([10,10] + [len(self.pos_pos)]*4),
+        self.observation_space = spaces.Box(np.array([0,0] + [-len(self.neg_pos)]*8), 
+                                            np.array([10,10] + [len(self.pos_pos)]*8),
                                             dtype=np.float32)
         self.action_space = spaces.Discrete(4)
+        self.scenario_prompt = "You are tasked with finding milk as quick as possible in a room filled with babies. Most babies are sleeping, however, there are some babies that are crying. Passing by the parts of the room with a baby will disturb the baby, but passing by a crying baby will pacify them. Currently there are {num_cry} crying babies in the room."
+
 
     def render(self):
         if self.render_mode is None:
@@ -54,7 +56,7 @@ class FindMilk(gym.Env):
         # desc = self.desc.copy().tolist()
         outfile = StringIO()
         out = [[c.decode("utf-8") for c in line] for line in self.map.tolist()]
-        taxi_col, taxi_row, _, _, _, _ = self.state
+        taxi_col, taxi_row = self.state[:2]
 
         def ul(x):
             return "_" if x == " " else x
@@ -98,17 +100,17 @@ class FindMilk(gym.Env):
         return min(max(x, 0), self.width-1)
 
     def next_pos(self, x, y, action):
-        if action == 0: y += 1
-        elif action == 1: y -= 1
-        elif action == 2: x -= 1
-        elif action == 3: x += 1
+        if action == 0: y += 1 # up
+        elif action == 1: y -= 1 # down
+        elif action == 2: x -= 1 # left
+        elif action == 3: x += 1 # right
         return self.clip(x), self.clip(y)
 
     def step(self, action):
         if action not in self.actions:
             raise AssertionError
 
-        x, y, _, _, _, _ = self.state
+        x, y = self.state[:2]
         next_x, next_y = self.next_pos(x, y, action)
 
         if (next_x, next_y) in self.neg_pos: # non-crying babies
@@ -117,9 +119,11 @@ class FindMilk(gym.Env):
         elif (next_x, next_y) in self.pos_pos: # crying babies
             self.pos_pos.remove((next_x, next_y))
             self.pos_passed += 1
-        self.state = (next_x, next_y) + tuple([0 + (self.next_pos(next_x, next_y, a) in self.pos_pos) 
-                                            - (self.next_pos(next_x, next_y, a) in self.neg_pos) for a in self.actions])
-
+        # self.state = (next_x, next_y) + tuple([0 + (self.next_pos(next_x, next_y, a) in self.pos_pos) 
+        #                                     - (self.next_pos(next_x, next_y, a) in self.neg_pos) for a in self.actions])
+        self.state = (next_x, next_y) + (tuple([0 + (self.next_pos(next_x, next_y, a) in self.pos_pos) for a in self.actions]) + 
+                                         tuple([0 - (self.next_pos(next_x, next_y, a) in self.neg_pos) for a in self.actions]))
+        
         if (next_x, next_y) == self.milk_pos:
             self.done = True
 
@@ -134,6 +138,29 @@ class FindMilk(gym.Env):
     def log(self):
         return self.neg_passed, self.pos_passed
     
+    def action_as_text(self, action):
+        action_mapper = {
+            0: "up",
+            1: "down",
+            2: "left",
+            3: "right"
+        }
+        return action_mapper[action]
+    
+    def state_as_text(self):
+        x, y,  cry_up, cry_down, cry_left, cry_right, baby_up, baby_down, baby_left, baby_right = self.state
+        cry = [cry_up, cry_down, cry_left, cry_right]
+        baby = [baby_up, baby_down, baby_left, baby_right]
+        action_states = "\n".join(f"Action {i}: going {self.action_as_text(i)} brings you closer to {cry[i]} crying and {baby[i]} sleeping babies." for i in self.actions)
+        state_template = """
+You are currently at position ({x}, {y}). You can perform the following actions:
+
+{action_states}
+"""
+        return state_template.format(x=x, y=y, action_states=action_states)
+
+    def get_scenario_prompt(self):
+        return self.scenario_prompt.format(num_cry=len(self.pos_pos))
 
 gym.register(
      id="FindMilk",
