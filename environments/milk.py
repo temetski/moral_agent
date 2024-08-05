@@ -151,14 +151,13 @@ class FindMilk(gym.Env):
         x, y,  cry_up, cry_down, cry_left, cry_right, baby_up, baby_down, baby_left, baby_right = self.state
         cry = [cry_up, cry_down, cry_left, cry_right]
         baby = [baby_up, baby_down, baby_left, baby_right]
-        action_states = "\n".join(f"Action {i}: going {self.action_as_text(i)} brings you closer to {cry[i]} crying and {baby[i]} sleeping babies." for i in self.actions)
+        action_text = "\n".join(f"Action {i}: going {self.action_as_text(i)} brings you closer to {cry[i]} crying and {baby[i]} sleeping babies." for i in self.actions)
         state_template = """
 You are currently at position ({x}, {y}). You can perform the following actions:
-
-{action_states}
 """
-        return state_template.format(x=x, y=y, action_states=action_states)
-
+        state_text = state_template.format(x=x, y=y)
+        return state_text, action_text
+    
     def get_scenario_prompt(self):
         return self.scenario_prompt.format(num_cry=len(self.pos_pos))
 
