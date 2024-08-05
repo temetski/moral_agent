@@ -1,44 +1,23 @@
-import gymnasium as gym
-
-
-env = gym.make('environments.milk:FindMilk', render_mode='ansi', max_episode_steps=1500)
-# env = gym.make('environments.drive:Driving', render_mode='ansi', max_episode_steps=1500)
-
-state = env.reset()
-done = env.done
-steps = 0
-frames = []
-while not done:
-    action = env.action_space.sample()
-    state, reward, terminated, truncated, info = env.step(action)
-    done = terminated or truncated
-
-    # Put each rendered frame into dict for animation
-    frames.append({
-        'frame': env.render(),
-        'state': state,
-        'action': action,
-        'reward': reward
-        }
-    )
-
-    steps += 1
-    if steps%10==0:
-        print(env.get_scenario_prompt())
-        print(env.state_as_text())
-env.close()
-
-# from IPython.display import clear_output
-# from time import sleep
-
-# def print_frames(frames, dt=0.1):
-#     for i, frame in enumerate(frames):
-#         clear_output(wait=True)
-#         print(frame['frame'])
-#         print(f"Timestep: {i + 1}")
-#         print(f"State: {frame['state']}")
-#         print(f"Action: {frame['action']}")
-#         print(f"Reward: {frame['reward']}")
-#         sleep(dt)
+from llm_fewShotPromptTraining import create_llm_env, few_shot_prompt_training, call_llm_with_state_action
+from fromBeliefToRewardUsingDST import belief_to_reward
+import numpy as np
+def main():
+    
+    credences = np.zeros((5, 5))
+    # Set the diagonal elements
+    for i in range(5):
+        credences[i, i] = 1
         
-# print_frames(frames, dt=0.01)
+    model = create_llm_env('sk-proj-NAiWY3A5VdlPoaqzQIw6T3BlbkFJCColCyRPluB6LlzIHgL7')
+    final_prompt = few_shot_prompt_training()
+    
+    # This call goes inside RL Step loop
+    belief_dict = call_llm_with_state_action("state","action",credences,model,final_prompt)
+    # print(belief_dict)
+    reward_dict = belief_to_reward(belief_dict)
+    
+    for key, value in sorted(reward_dict.items()):
+        print(f"{set(key)}: {value:.4f}")
+
+if __name__ == "__main__":
+    main()
