@@ -2,20 +2,19 @@ from langchain.prompts.few_shot import FewShotPromptTemplate
 from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
 from langchain.prompts.prompt import PromptTemplate
 from langchain_openai import ChatOpenAI
-import os
+
 import numpy as np
 import re
 
 
-def create_llm_env(key):    
-    os.environ['OPENAI_API_KEY'] = key
+def create_llm_env(key):  
     model = ChatOpenAI(
         model="llama3",
         temperature=0,
         max_tokens=None,
         timeout=None,
         max_retries=2,
-        api_key="sk-proj-NAiWY3A5VdlPoaqzQIw6T3BlbkFJCColCyRPluB6LlzIHgL7",  # if you prefer to pass api key in directly instaed of using env vars
+        api_key=key,  # if you prefer to pass api key in directly instaed of using env vars
         base_url='http://10.249.72.3:8000/v1',
         # organization="...",
         # other params...
@@ -198,7 +197,7 @@ def few_shot_prompt_training():
     - Capabilities Approach: This ethical theory adheres to the following key concepts: Human capabilities, Freedom to achieve well-being. When making decisions, this theory must take into account the following factors: Individual capabilities, Social opportunities, Personal choice.
     - Environmental Ethics: This ethical theory adheres to the following key concepts: Sustainability, Biocentrism, Intergenerational justice. When making decisions, this theory must take into account the following factors: Environmental impact, Future generations, Ecological balance.
 
-    You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice.:
+    You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice. The probability of all beliefs should sum up to 1:
     """),
             few_shot_prompt,
             ("human","{question}"),
@@ -220,7 +219,7 @@ def call_llm_with_state_action(state,action,credences,model,final_prompt):
         # print(weighted_Credences)
         state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
         action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
-        credence_text = "Behave as an agent that assigns the following credence values: {" + weighted_Credences +"}. Reason through using the credence confidence for moral theories and output the probability of belief for each actions in the last line of your response as Final Answer: Action A:value Action B:value A Action C:value Action D:value A"
+        credence_text = "Behave as an agent that assigns the following credence values: {" + weighted_Credences +"}. Reason through using the credence confidence for moral theories and output the probability of belief for each actions that should sum up to 1 in the last line of your response in this format - Final Answer: Action A:value Action B:value Action C:value Action D:value."
         question_text = f"{state}\n{action}\n{credence_text}"
         question_text_all.append(question_text)
         # print(question_text)
@@ -233,10 +232,10 @@ def call_llm_with_state_action(state,action,credences,model,final_prompt):
         lastLine = value[len(value)-1]
         # print(lastLine)
         # pattern = r"(?<=Final answer: )[ABCD]\.?"
-        pattern_a = re.compile(r'A: (-?\d+\.?\d*)')
-        pattern_b = re.compile(r'B: (-?\d*\.?\d+)')
-        pattern_c = re.compile(r'C: (-?\d*\.?\d+)')
-        pattern_d = re.compile(r'D: (-?\d*\.?\d+)')
+        pattern_a = re.compile(r'A:(-?\d+\.?\d*)')
+        pattern_b = re.compile(r'B:(-?\d*\.?\d+)')
+        pattern_c = re.compile(r'C:(-?\d*\.?\d+)')
+        pattern_d = re.compile(r'D:(-?\d*\.?\d+)')
         
         # Search for the pattern in the text
         match_a = re.search(pattern_a, lastLine)
@@ -247,12 +246,29 @@ def call_llm_with_state_action(state,action,credences,model,final_prompt):
         # print(match_b.group())
         # print(match_c.group())
         # print(match_d.group())
-        belief_A = re.sub(r'^[ABCD]:', '', match_a.group())
-        belief_B = re.sub(r'^[ABCD]:', '', match_b.group())
-        belief_C = re.sub(r'^[ABCD]:', '', match_c.group())
-        belief_D = re.sub(r'^[ABCD]:', '', match_d.group())
+        try:
+            belief_A = re.sub(r'^[ABCD]:', '', match_a.group())
+        except AttributeError:
+            belief_A = re.sub(r'^[ABCD]:', '', str(match_a))
+        try:
+            belief_B = re.sub(r'^[ABCD]:', '', match_b.group())
+        except AttributeError:
+            belief_B = re.sub(r'^[ABCD]:', '', str(match_b))
+        try:  
+            belief_C = re.sub(r'^[ABCD]:', '', match_c.group())
+        except AttributeError:
+            belief_C = re.sub(r'^[ABCD]:', '', str(match_c))
+        try:
+            belief_D = re.sub(r'^[ABCD]:', '', match_d.group())
+        except AttributeError:
+            belief_D = re.sub(r'^[ABCD]:', '', str(match_d))
+            
         one_row = belief_A +"_"+belief_B+"_"+belief_C+"_"+belief_D
-        # print(one_row)
+        sum_of_belief =  round(float(belief_A) + float(belief_B) + float(belief_C) + float(belief_D),2) #This was summing to 0.9999999999999 and that's why I had to do round
+        if (sum_of_belief)!=1.0:
+            print(sum_of_belief)
+            raise Exception("The sum of beliefs outputted by LLM is not equal to 1")
+        print(one_row)
         belief_dict[i] = one_row
         i+=1
     return belief_dict
