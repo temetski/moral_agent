@@ -5,7 +5,8 @@ from langchain_openai import ChatOpenAI
 
 import numpy as np
 import re
-
+import regex
+import json
 
 def create_llm_env(key):  
     model = ChatOpenAI(
@@ -24,7 +25,12 @@ def create_llm_env(key):
 def few_shot_prompt_training():    
     example_all_moral_clusters = [
         {
-        "question": "You are a train conductor facing a critical decision. There is a runaway trolley headed towards five workers on the main track. You can pull a lever to divert the trolley onto a side track, but there is one worker on that track. Additionally, you have the option to call for emergency assistance, though it might not arrive in time. Lastly, you could attempt to stop the trolley by placing an obstacle, but it could lead to unpredictable consequences. Should you pull the lever, call for help, place an obstacle, or do nothing and let the trolley continue on its path? Action A: Pull the lever. Action B: Call for emergency assistance. Action C: Place an obstacle. Action D: Do nothing. Explain your reasoning based on consequentialist principles.",
+        "question": """You are a train conductor facing a critical decision. There is a runaway trolley headed towards five workers on the main track. You can pull a lever to divert the trolley onto a side track, but there is one worker on that track. Additionally, you have the option to call for emergency assistance, though it might not arrive in time. Lastly, you could attempt to stop the trolley by placing an obstacle, but it could lead to unpredictable consequences. Should you pull the lever, call for help, place an obstacle, or do nothing and let the trolley continue on its path?
+Action A: Pull the lever. 
+Action B: Call for emergency assistance. 
+Action C: Place an obstacle. 
+Action D: Do nothing. 
+Explain your reasoning based on consequentialist principles.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -47,11 +53,16 @@ def few_shot_prompt_training():
     Follow up: How does consequentialism weigh immediate benefits against long-term consequences?
     Intermediate answer: Consequentialism requires evaluating both immediate and long-term outcomes to determine which action maximizes overall well-being.
     Follow up: So, what will be the probabilities of each action?
-    Final answer: Action A: 0.4, Action B: 0.3, Action C: 0.2, Action D: 0.1.
+    Final answer: {"A": 0.4, "B": 0.3, "C": 0.2, "D": 0.1 }
     """
         },
         {
-        "question": "You are a train conductor facing a critical decision. There is a runaway trolley headed towards five workers on the main track. You can pull a lever to divert the trolley onto a side track, but there is one worker on that track. Additionally, you have the option to call for emergency assistance, though it might not arrive in time. Lastly, you could attempt to stop the trolley by placing an obstacle, but it could lead to unpredictable consequences. Should you pull the lever, call for help, place an obstacle, or do nothing and let the trolley continue on its path? Action A: Pull the lever. Action B: Call for emergency assistance. Action C: Place an obstacle. Action D: Do nothing. Explain your reasoning based on deontological principles.",
+        "question": """You are a train conductor facing a critical decision. There is a runaway trolley headed towards five workers on the main track. You can pull a lever to divert the trolley onto a side track, but there is one worker on that track. Additionally, you have the option to call for emergency assistance, though it might not arrive in time. Lastly, you could attempt to stop the trolley by placing an obstacle, but it could lead to unpredictable consequences. Should you pull the lever, call for help, place an obstacle, or do nothing and let the trolley continue on its path? 
+Action A: Pull the lever. 
+Action B: Call for emergency assistance. 
+Action C: Place an obstacle. 
+Action D: Do nothing. 
+Explain your reasoning based on deontological principles.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -66,11 +77,16 @@ def few_shot_prompt_training():
     Follow up: How does deontological ethics weigh the importance of adhering to moral duties against the outcomes of actions?
     Intermediate answer: Deontological ethics prioritizes adherence to moral duties and rules over the consequences of actions, focusing on the inherent rightness or wrongness of the actions themselves.
     Follow up: So, what will be the probabilities of each action?
-    Final answer: Action A: 0.1, Action B: 0.5, Action C: 0.2, Action D: 0.2.
+    Final answer: {"A": 0.1, "B": 0.5, "C": 0.2, "D": 0.2 }
     """
         },
         {
-        "question": "A company is deciding whether to implement a costly environmental protection measure. This measure will significantly reduce pollution and improve public health but will also lead to increased product prices and potential job losses. Additionally, the company could partially implement the measure to balance costs and benefits, or invest in community health initiatives as an alternative solution. Should the company fully implement the measure, partially implement it, invest in community health, or not implement the measure at all? Action A: Fully implement the health measures. Action B: Partially implement the health measures. Action C: Invest in community health initiatives. Action D: Do not implement the health measures. Explain your reasoning based on virtue ethics principles.",
+        "question": """A company is deciding whether to implement a costly environmental protection measure. This measure will significantly reduce pollution and improve public health but will also lead to increased product prices and potential job losses. Additionally, the company could partially implement the measure to balance costs and benefits, or invest in community health initiatives as an alternative solution. Should the company fully implement the measure, partially implement it, invest in community health, or not implement the measure at all? 
+Action 0: Fully implement the health measures. 
+Action 1: Partially implement the health measures. 
+Action 2: Invest in community health initiatives. 
+Action 3: Do not implement the health measures. 
+Explain your reasoning based on virtue ethics principles.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -85,11 +101,16 @@ def few_shot_prompt_training():
     Follow up: How does virtue ethics evaluate the character and motivations of the decision-makers?
     Intermediate answer: Virtue ethics evaluates the decision based on the moral character and intentions of the decision-makers, aiming for actions that reflect virtuous traits and contribute to a flourishing society.
     Follow up: So, what are the probabilities of each action?
-    Final answer: Action A: 0.4, Action B: 0.3, Action C: 0.2, Action D: 0.1.
+    Final answer: {"0": 0.4, "1": 0.3, "2": 0.2, "3": 0.1 }
     """
         },
         {
-        "question": "A city is deciding whether to allocate a significant portion of its budget to building a new public park in an underserved neighborhood. This park will provide recreational opportunities and improve the quality of life for residents but will also mean reducing funds for other services such as public transportation, healthcare, and education. Additionally, the city could opt to build smaller parks in multiple neighborhoods or invest in improving existing facilities. Should the city allocate the budget to build the new park, distribute the funds to smaller projects, improve existing facilities, or maintain the current budget distribution? Action A: Build the new park. Action B: Distribute funds to smaller projects. Action C: Improve existing facilities. Action D: Maintain the current budget distribution. Explain your reasoning based on social justice principles.",
+        "question": """A city is deciding whether to allocate a significant portion of its budget to building a new public park in an underserved neighborhood. This park will provide recreational opportunities and improve the quality of life for residents but will also mean reducing funds for other services such as public transportation, healthcare, and education. Additionally, the city could opt to build smaller parks in multiple neighborhoods or invest in improving existing facilities. Should the city allocate the budget to build the new park, distribute the funds to smaller projects, improve existing facilities, or maintain the current budget distribution? 
+Action A: Build the new park. 
+Action B: Distribute funds to smaller projects. 
+Action C: Improve existing facilities. 
+Action D: Maintain the current budget distribution. 
+Explain your reasoning based on social justice principles.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -108,11 +129,16 @@ def few_shot_prompt_training():
     Follow up: What are the potential benefits and drawbacks of maintaining the current budget distribution?
     Intermediate answer: Maintaining the current budget distribution avoids disruption and ensures continued support for existing services, but it may also perpetuate existing inequalities and fail to address the needs of underserved areas.
     Follow up: So, what are the probabilities of each action?
-    Final answer: Action A: 0.3, Action B: 0.4, Action C: 0.2, Action D: 0.1.
+    Final answer: {"A": 0.3, "B": 0.4, "C": 0.2, "D": 0.1 }
     """
         },
         {
-        "question": "A city is deciding whether to allocate a significant portion of its budget to building a new public park in an underserved neighborhood. This park will provide recreational opportunities and improve the quality of life for residents but will also mean reducing funds for other services such as public transportation, healthcare, and education. Additionally, the city could opt to build smaller parks in multiple neighborhoods or invest in improving existing facilities. Should the city allocate the budget to build the new park, distribute the funds to smaller projects, improve existing facilities, or maintain the current budget distribution? Action A: Build the new park. Action B: Distribute funds to smaller projects. Action C: Improve existing facilities. Action D: Maintain the current budget distribution. Explain your reasoning based on care ethics principles.",
+        "question": """A city is deciding whether to allocate a significant portion of its budget to building a new public park in an underserved neighborhood. This park will provide recreational opportunities and improve the quality of life for residents but will also mean reducing funds for other services such as public transportation, healthcare, and education. Additionally, the city could opt to build smaller parks in multiple neighborhoods or invest in improving existing facilities. Should the city allocate the budget to build the new park, distribute the funds to smaller projects, improve existing facilities, or maintain the current budget distribution? 
+    Action build: Build the new park. 
+    Action distribute: Distribute funds to smaller projects. 
+    Action improve: Improve existing facilities. 
+    Action maintain: Maintain the current budget distribution. 
+    Explain your reasoning based on care ethics principles.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -131,7 +157,7 @@ def few_shot_prompt_training():
     Follow up: What are the potential benefits and drawbacks of maintaining the current budget distribution?
     Intermediate answer: Maintaining the current budget distribution ensures continuity of existing services, but it may overlook opportunities to address unmet needs and enhance care in underserved areas.
     Follow up: So, what are the probabilities of each action?
-    Final answer: Action A: 0.4, Action B: 0.3, Action C: 0.2, Action D: 0.1.
+    Final answer: {"build": 0.4, "distribute": 0.3, "build": 0.2, "maintain": 0.1}
     """
         }
     ]
@@ -190,7 +216,7 @@ def few_shot_prompt_training():
     - Capabilities Approach: This ethical theory adheres to the following key concepts: Human capabilities, Freedom to achieve well-being. When making decisions, this theory must take into account the following factors: Individual capabilities, Social opportunities, Personal choice.
     - Environmental Ethics: This ethical theory adheres to the following key concepts: Sustainability, Biocentrism, Intergenerational justice. When making decisions, this theory must take into account the following factors: Environmental impact, Future generations, Ecological balance.
 
-    You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice. The probability of all beliefs should sum up to 1:
+    You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice as a dictionary of key:value pairs. The sum of all beliefs should be equal to 1:
     """),
             few_shot_prompt,
             ("human","{question}"),
@@ -214,7 +240,7 @@ def call_llm_with_state_action(state,action,credences,model,final_prompt):
         # state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
         # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
         # action = "Action A: Going up brings you closer to 0 crying and 0 sleeping babies. \nAction B: Going down brings you closer to 0 crying and 0 sleeping babies. \nAction C: Going left brings you closer to 0 crying and 0 sleeping babies. \nAction D: going right brings you closer to 0 crying and 0 sleeping babies."
-        credence_text = "Behave as an agent that assigns the following credence values: {" + weighted_Credences +"}. Reason through using the credence confidence for moral theories and output the probability of belief for each actions in the last line of your response. The sum of all belief should be exactly equal to 1. The last line format should be exactly - Final Answer: Action A:value Action B:value Action C:value Action D:value."
+        credence_text = "Behave as an agent that assigns the following credence values: {" + weighted_Credences +"}. Reason through using the credence confidence for moral theories and output the probability of belief for each actions in the last line of your response."
         question_text = f"{state}\n{action}\n{credence_text}"
         question_text_all.append(question_text)
         # print(question_text)
@@ -223,46 +249,20 @@ def call_llm_with_state_action(state,action,credences,model,final_prompt):
         response = model.invoke(formattedChatPrompt)
         # print("Response Content: ", response.content)
         value = response.content.split('\n')
-        # print(value)
-        lastLine = value[len(value)-1]
-        print(lastLine)
-        # pattern = r"(?<=Final answer: )[ABCD]\.?"
-        pattern_a = re.compile(r'A:(-?\d+\.?\d*)')
-        pattern_b = re.compile(r'B:(-?\d*\.?\d+)')
-        pattern_c = re.compile(r'C:(-?\d*\.?\d+)')
-        pattern_d = re.compile(r'D:(-?\d*\.?\d+)')
+
+        print(response.content)
+
+        dict_pattern = r'\{(?:[^{}]|(?R))*\}'
+        pattern = regex.compile(dict_pattern)
+
         
         # Search for the pattern in the text
-        match_a = re.search(pattern_a, lastLine)
-        match_b = re.search(pattern_b, lastLine)
-        match_c = re.search(pattern_c, lastLine)
-        match_d = re.search(pattern_d, lastLine)
-        # print(match_a.group())
-        # print(match_b.group())
-        # print(match_c.group())
-        # print(match_d.group())
-        try:
-            belief_A = re.sub(r'^[ABCD]:', '', match_a.group())
-        except AttributeError:
-            belief_A = re.sub(r'^[ABCD]:', '', str(match_a))
-        try:
-            belief_B = re.sub(r'^[ABCD]:', '', match_b.group())
-        except AttributeError:
-            belief_B = re.sub(r'^[ABCD]:', '', str(match_b))
-        try:  
-            belief_C = re.sub(r'^[ABCD]:', '', match_c.group())
-        except AttributeError:
-            belief_C = re.sub(r'^[ABCD]:', '', str(match_c))
-        try:
-            belief_D = re.sub(r'^[ABCD]:', '', match_d.group())
-        except AttributeError:
-            belief_D = re.sub(r'^[ABCD]:', '', str(match_d))
-            
-        one_row = belief_A +"_"+belief_B+"_"+belief_C+"_"+belief_D
-        sum_of_belief =  round(float(belief_A) + float(belief_B) + float(belief_C) + float(belief_D),2) #This was summing to 0.9999999999999 and that's why I had to do round
-        if (sum_of_belief)!=1.0:
-            print(sum_of_belief)
-            raise Exception("The sum of beliefs outputted by LLM is not equal to 1")
+        match = pattern.findall(response.content)[0]
+
+        beliefs = json.loads(match)
+        one_row = '_'.join([str(x) for x in beliefs.values()])
+        sum_of_belief = sum(beliefs.values())
+        np.testing.assert_almost_equal(sum_of_belief, 1, err_msg="The sum of beliefs outputted by LLM is not equal to 1")
         print(one_row)
         belief_dict[i] = one_row
         i+=1
