@@ -86,7 +86,7 @@ class FindMilk(gym.Env):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
 
-        self.state = (0, 0, 0, 0, 0, 0) # x,y,u,d,l,r (num crying - non-crying)
+        self.state = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0) # x,y,u,d,l,r (num crying - non-crying)
         #self.timestamp = 0
         self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)]
         self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)]
