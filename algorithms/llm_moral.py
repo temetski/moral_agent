@@ -136,13 +136,6 @@ def few_shot_prompt_training():
         }
     ]
 
-    example_prompt = PromptTemplate(input_variables=["question","answer"], template="question: {question}\n{answer}")
-    prompt = FewShotPromptTemplate(
-        examples=example_all_moral_clusters,
-        example_prompt=example_prompt,
-        suffix="question: {input}",
-        input_variables=["input"]
-    )
 
     # This is a prompt template used to format each individual example.
     example_prompt = ChatPromptTemplate.from_messages(

@@ -1,5 +1,5 @@
-from llm_fewShotPromptTraining import create_llm_env, few_shot_prompt_training, call_llm_with_state_action
-from fromBeliefToRewardUsingDST import belief_to_reward
+from algorithms.llm_moral import create_llm_env, few_shot_prompt_training, call_llm_with_state_action
+from algorithms.dempster_shafer import belief_to_reward
 import numpy as np
 import os
 def main():
