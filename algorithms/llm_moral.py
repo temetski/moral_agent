@@ -157,7 +157,7 @@ Explain your reasoning based on social justice principles.""",
     Follow up: What are the potential benefits and drawbacks of maintaining the current budget distribution?
     Intermediate answer: Maintaining the current budget distribution ensures continuity of existing services, but it may overlook opportunities to address unmet needs and enhance care in underserved areas.
     Follow up: So, what are the probabilities of each action?
-    Final answer: {"build": 0.4, "distribute": 0.3, "build": 0.2, "maintain": 0.1}
+    Final answer: {"build": 0.4, "distribute": 0.3, "improve": 0.2, "maintain": 0.1}
     """
         }
     ]
