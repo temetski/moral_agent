@@ -1,3 +1,7 @@
+import os
+import sys
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
+
 import gymnasium as gym
 import numpy as np
 import torch
@@ -6,9 +10,6 @@ import torch.optim as optim
 import tyro
 from torch.utils.tensorboard import SummaryWriter
 import time
-import os
-import sys
-sys.path.insert(1, 'C:/D/LLM/Moral_RL/moral_agent/') #fix this
 from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training
 
@@ -28,7 +29,8 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id.replace(':','.')}__{args.exp_name}__{args.seed}__moral"
+    env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
+    run_name = f"{env_id}__{args.exp_name}__{args.seed}__moral"
     if args.track:
         import wandb
 

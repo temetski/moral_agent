@@ -1,5 +1,7 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/dqn/#dqnpy
 import os
+import sys
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 import random
 import time
 from dataclasses import dataclass
@@ -13,8 +15,6 @@ import torch.optim as optim
 import tyro
 from stable_baselines3.common.buffers import ReplayBuffer
 from torch.utils.tensorboard import SummaryWriter
-
-from environments.milk import FindMilk
 
 @dataclass
 class Args:
@@ -121,7 +121,8 @@ poetry run pip install "stable_baselines3==2.0.0a1"
         )
     args = tyro.cli(Args)
     assert args.num_envs == 1, "vectorized envs are not supported at the moment"
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
+    run_name = f"{env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
 
