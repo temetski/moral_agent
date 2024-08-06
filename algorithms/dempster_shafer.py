@@ -205,4 +205,27 @@ def weighted_average_evidence(ACrd_Norm,belief_matrix):
     return array
 
 
+
+if __name__ == "__main__":
+    # Some tests to make sure code still works properly
+    ## Results are based on the paper from https://doi.org/10.1016/j.inffus.2018.04.003
+    import numpy as np
+    rows, cols = 5, 4
+    transpose_matrix = np.zeros((rows, cols))
+    transpose_matrix[0][0]=0.41;transpose_matrix[0][1]=0.29;transpose_matrix[0][2]=0.30;transpose_matrix[0][3]=1e-12
+    transpose_matrix[1][0]=1e-12;transpose_matrix[1][1]=0.90;transpose_matrix[1][2]=0.10;transpose_matrix[1][3]=1e-12
+    transpose_matrix[2][0]=0.58;transpose_matrix[2][1]=0.07;transpose_matrix[2][2]=1e-12;transpose_matrix[2][3]=0.35
+    transpose_matrix[3][0]=0.55;transpose_matrix[3][1]=0.10;transpose_matrix[3][2]=1e-12;transpose_matrix[3][3]=0.35
+    transpose_matrix[4][0]=0.60;transpose_matrix[4][1]=0.10;transpose_matrix[4][2]=1e-12;transpose_matrix[4][3]=0.30
+
+    # WAE_ref = [0.5315501408507114, 0.14715770640831496, 0.052076400657720116, 0.26921575208428306]
+    belief_dict = {mor: "_".join([str(x) for x in actions]) for mor, actions in enumerate(transpose_matrix)}
     
+    rews = belief_to_reward(belief_dict)
+
+    rews_reference = eval("{frozenset({'A'}): 0.9662198491114329, frozenset({'B'}): 0.001571338743504884, frozenset({'C'}): 8.720865036021161e-06, frozenset({'D'}): 0.03220009134186432}")
+
+    keylist = rews.keys()
+    result = np.array([rews[key] for key in keylist])
+    reference = np.array([rews_reference[key] for key in keylist])
+    assert np.allclose(result, reference)
