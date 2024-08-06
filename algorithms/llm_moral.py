@@ -30,7 +30,7 @@ Action A: Pull the lever.
 Action B: Call for emergency assistance. 
 Action C: Place an obstacle. 
 Action D: Do nothing. 
-Explain your reasoning based on consequentialist principles.""",
+Behave as an agent that assigns the following credence values: {"Consequentialist:1.0,Deontological:0.0,Virtue Ethics:0.0,Care Ethics:0.0,Social Justice Ethics:0.0"}. Reason through using the credence confidence for moral theories.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -62,7 +62,7 @@ Action A: Pull the lever.
 Action B: Call for emergency assistance. 
 Action C: Place an obstacle. 
 Action D: Do nothing. 
-Explain your reasoning based on deontological principles.""",
+Behave as an agent that assigns the following credence values: {"Consequentialist:0.0,Deontological:1.0,Virtue Ethics:0.0,Care Ethics:0.0,Social Justice Ethics:0.0"}. Reason through using the credence confidence for moral theories.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -86,7 +86,7 @@ Action 0: Fully implement the health measures.
 Action 1: Partially implement the health measures. 
 Action 2: Invest in community health initiatives. 
 Action 3: Do not implement the health measures. 
-Explain your reasoning based on virtue ethics principles.""",
+Behave as an agent that assigns the following credence values: {"Consequentialist:0.0,Deontological:0.0,Virtue Ethics:1.0,Care Ethics:0.0,Social Justice Ethics:0.0"}. Reason through using the credence confidence for moral theories.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -110,7 +110,7 @@ Action A: Build the new park.
 Action B: Distribute funds to smaller projects. 
 Action C: Improve existing facilities. 
 Action D: Maintain the current budget distribution. 
-Explain your reasoning based on social justice principles.""",
+Behave as an agent that assigns the following credence values: {"Consequentialist:0.0,Deontological:0.0,Virtue Ethics:0.0,Care Ethics:0.0,Social Justice Ethics:1.0"}. Reason through using the credence confidence for moral theories.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -138,7 +138,7 @@ Explain your reasoning based on social justice principles.""",
     Action distribute: Distribute funds to smaller projects. 
     Action improve: Improve existing facilities. 
     Action maintain: Maintain the current budget distribution. 
-    Explain your reasoning based on care ethics principles.""",
+    Behave as an agent that assigns the following credence values: {"Consequentialist:0.0,Deontological:0.0,Virtue Ethics:0.0,Care Ethics:1.0,Social Justice Ethics:0.0"}. Reason through using the credence confidence for moral theories.""",
         "answer": 
     """
     Are follow-up questions needed here: Yes.
@@ -216,7 +216,7 @@ Explain your reasoning based on social justice principles.""",
     - Capabilities Approach: This ethical theory adheres to the following key concepts: Human capabilities, Freedom to achieve well-being. When making decisions, this theory must take into account the following factors: Individual capabilities, Social opportunities, Personal choice.
     - Environmental Ethics: This ethical theory adheres to the following key concepts: Sustainability, Biocentrism, Intergenerational justice. When making decisions, this theory must take into account the following factors: Environmental impact, Future generations, Ecological balance.
 
-    You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice as a dictionary of key:value pairs. The sum of all beliefs should be equal to 1:
+    You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice as a dictionary of key:value pairs. Do not write reasoning or anything else after the lastline. The sum of all beliefs should be equal to 1. 
     """),
             few_shot_prompt,
             ("human","{question}"),
@@ -225,7 +225,7 @@ Explain your reasoning based on social justice principles.""",
         ])
     return final_prompt
 
-def call_llm_with_state_action(state,action,credences,model,final_prompt):        
+def call_llm_with_state_action(scenario_prompt,state,action,credences,model,final_prompt):        
     question_text_all = []
     i=0
     votes = []
@@ -233,15 +233,15 @@ def call_llm_with_state_action(state,action,credences,model,final_prompt):
     for c in credences:
         # c_list = c.split(" ")
         c_Consequentialist = credences[i][0];c_Deontological = credences[i][1];c_Virtue = credences[i][2];c_Care = credences[i][3];c_SocialJustice = credences[i][4]
-    
+   
         weighted_Credences = "Consequentialist:" + str(c_Consequentialist) + ",Deontological:" + str(c_Deontological) + ",Virtue Ethics:" + str(c_Virtue) + ",Care Ethics:" + str(c_Care) + ", Social Justice Ethics:" + str(c_SocialJustice)
         # print(weighted_Credences)
         # state = "You are tasked with finding milk as quickly as possible in a room filled with babies. Most babies are sleeping, however, there are some babies that are crying. Passing by the parts of the room with a baby will disturb the baby, but passing by a crying baby will pacify them. Currently there are 0 crying babies in the room. You are currently at position (9, 7) and the milk is at position (9,9). You can perform the following actions. "
         # state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
         # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
         # action = "Action A: Going up brings you closer to 0 crying and 0 sleeping babies. \nAction B: Going down brings you closer to 0 crying and 0 sleeping babies. \nAction C: Going left brings you closer to 0 crying and 0 sleeping babies. \nAction D: going right brings you closer to 0 crying and 0 sleeping babies."
-        credence_text = "Behave as an agent that assigns the following credence values: {" + weighted_Credences +"}. Reason through using the credence confidence for moral theories and output the probability of belief for each actions in the last line of your response."
-        question_text = f"{state}\n{action}\n{credence_text}"
+        credence_text = "Behave as an agent that assigns the following credence values: {" + weighted_Credences +"}. Reason through using the credence confidence for moral theories and output like the learnt examples."
+        question_text = f"{scenario_prompt}\n{state}\n{action}\n{credence_text}"
         question_text_all.append(question_text)
         # print(question_text)
         # formattedChatPrompt = final_prompt.format_messages(question="You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board. \n Action A: I will rescue 5 additional people. \n Action B: I will not rescue 5 additional people. Behave as an agent that assigns the following credence values: {}. Reason through using the credence as weighted confidence for moral theories and output what action will you choose as Final answer:?")
@@ -263,7 +263,7 @@ def call_llm_with_state_action(state,action,credences,model,final_prompt):
         one_row = '_'.join([str(x) for x in beliefs.values()])
         sum_of_belief = sum(beliefs.values())
         np.testing.assert_almost_equal(sum_of_belief, 1, err_msg="The sum of beliefs outputted by LLM is not equal to 1")
-        print(one_row)
+        # print(one_row)
         belief_dict[i] = one_row
         i+=1
     return belief_dict

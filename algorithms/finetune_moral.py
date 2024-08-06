@@ -7,7 +7,8 @@ import tyro
 from torch.utils.tensorboard import SummaryWriter
 import time
 import os
-
+import sys
+sys.path.insert(1, 'C:/D/LLM/Moral_RL/moral_agent/') #fix this
 from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training
 
@@ -27,7 +28,7 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__moral"
+    run_name = f"{args.env_id.replace(':','.')}__{args.exp_name}__{args.seed}__moral"
     if args.track:
         import wandb
 
@@ -60,7 +61,7 @@ if __name__ == "__main__":
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs).to(device)
-    LOADPATH = "runs/environments.milk:FindMilk__ppo__42__1722850822/ppo.cleanrl_model"
+    LOADPATH = "runs/environments.milk.FindMilk__ppo__42__1722850822/ppo.cleanrl_model" #Remove hardcode folderpath
     agent.load_state_dict(torch.load(LOADPATH))
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -102,7 +103,8 @@ if __name__ == "__main__":
             # TRY NOT TO MODIFY: execute the game and log data.
             for i in range(args.num_envs):
                 state_text, action_text = envs.envs[i].unwrapped.state_as_text()
-                beliefs = call_llm_with_state_action(state_text,action_text,credences,model,final_prompt)
+                scenario_prompt = envs.envs[i].unwrapped.get_scenario_prompt()
+                beliefs = call_llm_with_state_action(scenario_prompt,state_text,action_text,credences,model,final_prompt)
                 print(beliefs) # TODO: process as shaping rewards
                 # TODO: cache state-action prompts to save processing time
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
