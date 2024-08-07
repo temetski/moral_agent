@@ -13,7 +13,7 @@ def H(x):
     return -np.sum(x*np.log2(x))
 
 def belief_to_reward(belief_dict, actionsets):
-    array = [list(map(float, value.split('_'))) for value in belief_dict.values()]
+    array = [value for value in belief_dict.values()]
     transposed_array = np.array(array)
     belief_matrix = transposed_array + EPSILON*(transposed_array==0) # add small epsilon to null values
     
@@ -168,7 +168,7 @@ if __name__ == "__main__":
 
     actionsets = [frozenset({'A'}), frozenset({'B'}),frozenset({'C'}),frozenset({'A','C'})]
     # WAE_ref = [0.5315501408507114, 0.14715770640831496, 0.052076400657720116, 0.26921575208428306]
-    belief_dict = {mor: "_".join([str(x) for x in actions]) for mor, actions in enumerate(transpose_matrix)}
+    belief_dict = {mor: actions for mor, actions in enumerate(transpose_matrix)}
     
     rews = belief_to_reward(belief_dict, actionsets)
 

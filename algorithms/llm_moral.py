@@ -7,6 +7,8 @@ import numpy as np
 import re
 import regex
 import json
+from collections import OrderedDict
+import warnings
 
 def create_llm_env(key):  
     model = ChatOpenAI(
@@ -225,7 +227,7 @@ Behave as an agent that assigns the following credence values: {"Consequentialis
         ])
     return final_prompt
 
-def call_llm_with_state_action(scenario_prompt,state,action,credences,model,final_prompt):        
+def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt):        
     question_text_all = []
     i=0
     votes = []
@@ -250,7 +252,7 @@ def call_llm_with_state_action(scenario_prompt,state,action,credences,model,fina
         # print("Response Content: ", response.content)
         value = response.content.split('\n')
 
-        print(response.content)
+        # print(response.content)
 
         dict_pattern = r'\{(?:[^{}]|(?R))*\}'
         pattern = regex.compile(dict_pattern)
@@ -259,11 +261,26 @@ def call_llm_with_state_action(scenario_prompt,state,action,credences,model,fina
         # Search for the pattern in the text
         match = pattern.findall(response.content)[0]
 
-        beliefs = json.loads(match)
-        one_row = '_'.join([str(x) for x in beliefs.values()])
-        sum_of_belief = sum(beliefs.values())
-        np.testing.assert_almost_equal(sum_of_belief, 1, err_msg="The sum of beliefs outputted by LLM is not equal to 1")
-        # print(one_row)
+        beliefs = json.loads(match, object_pairs_hook=OrderedDict) # ensure dictionary does not reorder choices
+        # print(beliefs)
+        # Fill missing values if LLM does not output beliefs for other actions
+        for actionset in actionsets:
+            assert len(actionset)==1
+            item = list(actionset)[0]
+            if list(actionset)[0] not in beliefs.keys():
+                beliefs[item] = 0
+
+        assert len(actionsets) == len(beliefs)
+
+        one_row = np.array(list(beliefs.values()))
+        sum_of_belief = one_row.sum()
+        if np.all(one_row==0):
+            warnings.warn("Beliefs cannot be zero. Setting beliefs to be equal")
+            one_row += 1/len(one_row)
+        if not np.isclose(sum_of_belief, 1):
+            warnings.warn("The sum of beliefs outputted by LLM is not equal to 1. Proceeding to normalize values")
+            one_row /= one_row.sum()
+        # assert sum_of_belief>0, f"ERROR: beliefs cannot be zero. \n{response.content}"
         belief_dict[i] = one_row
         i+=1
     return belief_dict
