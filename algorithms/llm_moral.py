@@ -270,13 +270,20 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
             if list(actionset)[0] not in beliefs.keys():
                 beliefs[item] = 0
 
-        assert len(actionsets) == len(beliefs)
+        # remove erroneous actions added by the LLM
+        keys_to_del = []
+        for key in beliefs.keys():
+            if frozenset([key]) not in actionsets:
+                keys_to_del.append(key)
+        for key in keys_to_del:
+            del beliefs[key] 
+        assert len(actionsets) == len(beliefs) 
 
-        one_row = np.array(list(beliefs.values()))
+        one_row = np.array(list(beliefs.values()), dtype=float)
         sum_of_belief = one_row.sum()
         if np.all(one_row==0):
             warnings.warn("Beliefs cannot be zero. Setting beliefs to be equal")
-            one_row += 1/len(one_row)
+            one_row += 1./len(one_row)
         if not np.isclose(sum_of_belief, 1):
             warnings.warn("The sum of beliefs outputted by LLM is not equal to 1. Proceeding to normalize values")
             one_row /= one_row.sum()
