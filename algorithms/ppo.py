@@ -37,7 +37,7 @@ class Args:
     """whether to save model into the `runs/{run_name}` folder"""
 
     # Algorithm specific arguments
-    env_id: str = "FindMilk"
+    env_id: str = "environments.milk:FindMilk" 
     """the id of the environment"""
     total_timesteps: int = 500000
     """total timesteps of the experiments"""

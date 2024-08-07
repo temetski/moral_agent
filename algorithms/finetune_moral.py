@@ -63,7 +63,7 @@ if __name__ == "__main__":
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs).to(device)
-    LOADPATH = "runs/environments.milk.FindMilk__ppo__42__1722850822/ppo.cleanrl_model" #Remove hardcode folderpath
+    LOADPATH = "runs/environments.milk.FindMilk__ppo__1__1723014023/ppo.cleanrl_model" #Remove hardcode folderpath
     agent.load_state_dict(torch.load(LOADPATH))
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
