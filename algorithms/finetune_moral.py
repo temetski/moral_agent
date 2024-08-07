@@ -12,6 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training
+from dempster_shafer import belief_to_reward
 
 NUM_MORAL = 5
 
@@ -23,6 +24,11 @@ for i in range(NUM_MORAL):
 api_key = os.environ.get("OPENAI_API_KEY", "none")
 model = create_llm_env(api_key)
 final_prompt = few_shot_prompt_training()
+
+## OVERRIDES
+Args.num_steps = 64
+Args.total_timesteps = 100*Args.num_steps
+Args.num_envs = 1
 
 if __name__ == "__main__":
     args = tyro.cli(Args)
@@ -63,7 +69,7 @@ if __name__ == "__main__":
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs).to(device)
-    LOADPATH = "runs/environments.milk.FindMilk__ppo__42__1722850822/ppo.cleanrl_model" #Remove hardcode folderpath
+    LOADPATH = "runs/environments.milk:FindMilk__ppo__42__1722850822/ppo.cleanrl_model" #Remove hardcode folderpath
     agent.load_state_dict(torch.load(LOADPATH))
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -102,15 +108,23 @@ if __name__ == "__main__":
             actions[step] = action
             logprobs[step] = logprob
 
+            the_actions = action.cpu().numpy()
             # TRY NOT TO MODIFY: execute the game and log data.
+            shaping_reward = []
             for i in range(args.num_envs):
-                state_text, action_text = envs.envs[i].unwrapped.state_as_text()
-                scenario_prompt = envs.envs[i].unwrapped.get_scenario_prompt()
-                beliefs = call_llm_with_state_action(scenario_prompt,state_text,action_text,credences,model,final_prompt)
-                print(beliefs) # TODO: process as shaping rewards
+                unwrapped_env = envs.envs[i].unwrapped
+                state_text, action_text = unwrapped_env.state_as_text()
+                actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
+                scenario_prompt = unwrapped_env.get_scenario_prompt()
+                beliefs = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)
+                # print(beliefs) # TODO: process as shaping rewards
+                reward_dict = belief_to_reward(beliefs, actionsets)
+                shaping_reward.append(reward_dict[frozenset([str(the_actions[i])])])
                 # TODO: cache state-action prompts to save processing time
+                # history[tuple(state)] = reward_dict
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
 
+            reward = np.add(reward, shaping_reward)
 
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
@@ -217,8 +231,8 @@ if __name__ == "__main__":
         print("SPS:", int(global_step / (time.time() - start_time)))
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
-    if args.save_model:
-        model_path = f"runs/{run_name}/{args.exp_name}.cleanrl_model"
+    if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
+        model_path = f"runs/{run_name}/{args.exp_name}_{iteration}.cleanrl_model"
         torch.save(agent.state_dict(), model_path)
         print(f"model saved to {model_path}")
 
