@@ -43,7 +43,7 @@ def belief_to_reward(belief_dict, actionsets):
     # print(CRD)
 
     #Step 2-1: Measure the belief entropy of the evidence mi as below:
-    ED = compute_belief_entropy(belief_matrix)
+    ED = compute_belief_entropy(belief_matrix, actionsets)
     # print(ED)
 
     #Step 2-2: Measure the information volume of the evidence mi as below
@@ -117,18 +117,16 @@ def sum_rows(matrix,cols):
 
 
 
-def compute_belief_entropy(array):
+def compute_belief_entropy(array, actionsets):
     # a1 = 0.60;a2=0.10;a3=1e-12;a4=0.30 # nope
     cardinality = 1 #number of element in a set. {A} = 1 {A,C} = 2
-    num_columns = len(array[0])
     num_sensors, num_actions = array.shape
+    assert len(actionsets)==num_actions
     ED = np.zeros(num_sensors)    
     for index, col in enumerate(array):
         ed = 0
         for col_index, element in enumerate(col):
-            cardinality = 1
-            if col_index == 3:
-                cardinality = 2
+            cardinality = len(actionsets[col_index])
             ed += element*np.log2(element/((2**cardinality) - 1))
         ED[index] = -ed
     return ED
