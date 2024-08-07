@@ -1,4 +1,5 @@
 import math
+import numpy as np
 import pandas as pd
     
 from itertools import combinations
@@ -18,34 +19,30 @@ def replace_zeros_with_small_value(matrix, value=1e-12):
     # Iterate over each row and each element in the matrix
     for i in range(len(matrix)):
         for j in range(len(matrix[i])):
-            if matrix[i][j] == 0:
-                matrix[i][j] = value
+            if matrix[i, j] == 0:
+                matrix[i, j] = value
 
     return matrix
 
+def H(x):
+    '''shannon entropy'''
+    return -np.sum(x*np.log2(x))
+
 def belief_to_reward(belief_dict):
     array = [list(map(float, value.split('_'))) for value in belief_dict.values()]
-    transposed_array = [list(row) for row in zip(*array)]
+    transposed_array = np.array(array)
     belief_matrix = replace_zeros_with_small_value(transposed_array)
     
     #Step 1-1 Construct the distance measure matrix DMM = BJS(ij) as follows:
     # Initialize a 4x5 array with default values (e.g., zeros)
-    rows, cols = 5, 5 #rows are number of actions. cols are number of model clusters (sensors)
-    DMM = [[0 for _ in range(cols)] for _ in range(rows)]
-    for i in range(rows):
+    rows, cols = 4, 5 #rows are number of actions. cols are number of model clusters (sensors)
+    DMM = np.zeros((cols, cols))
+
+    for i in range(cols):
         for j in range(cols):
-            value = 0      
-            for z in range(rows-1):
+            DMM[i,j] = H(0.5*(belief_matrix[i,:]+belief_matrix[j, :])) -0.5*(H(belief_matrix[i, :]) + H(belief_matrix[j, :]))
 
-                value = value + 1/2*belief_matrix[z][i]*math.log2((2*belief_matrix[z][i])/(belief_matrix[z][i] + belief_matrix[z][j])) + \
-                        1/2*belief_matrix[z][j]*math.log2((2*belief_matrix[z][j])/(belief_matrix[z][i] + belief_matrix[z][j]))
-            if i==j:
-                DMM[i][j] = 0
-            else:
-                DMM[i][j] = value
-
-    # for row in DMM:
-    #     print(row)
+    # print(DMM)
 
     #Step 1-2 Obtain the average evidence distance BJS_i of the evidence m_i follows:
     # Get the sum of each row
@@ -54,11 +51,11 @@ def belief_to_reward(belief_dict):
 
     #Step 1-3 Calculate the support degree of the evidence mi as below:
     # Divide each element by 1 
-    SUP = divide_one_by_elements(BJS)
+    SUP = 1/BJS
     # print(SUP)
 
     #Step 1-4 : Compute the credibility degree of the evidence mi as follows:
-    CRD = average_elements_by_sum(SUP)
+    CRD = SUP/np.sum(SUP)
     # print(CRD)
 
     #Step 2-1: Measure the belief entropy of the evidence mi as below:
@@ -66,30 +63,32 @@ def belief_to_reward(belief_dict):
     # print(ED)
 
     #Step 2-2: Measure the information volume of the evidence mi as below
-    IV = compute_information_volume(ED)
+    IV = np.exp(ED)
     # print(IV)
 
     #Step 2-3: Normalise the information volume of the evidence mi as follows:
-    IV_Norm = normalize_information_volume(IV)
+    IV_Norm = IV/IV.sum()
     # print(IV_Norm)
 
+    assert CRD.shape==IV_Norm.shape
     #Step 3-1: Adjust the credibility degree of the evidence mi based on the information volume of the evidence as below:
-    ACrd = adjust_credibility_degree(CRD,IV_Norm)
+    ACrd = CRD*IV_Norm
     # print(ACrd)
 
     #Step 3-2: Normalise the adjusted credibility degree of the evidence mi as below:
-    ACrd_Norm = normalize_credibility_degree(ACrd)
+    ACrd_Norm = ACrd/ACrd.sum()
     # print(ACrd_Norm)
 
     #Step 3-3: Compute the weighted average evidence as follows:
-    WAE_m = weighted_average_evidence(ACrd_Norm,belief_matrix)
+    WAE_m = np.matmul(ACrd_Norm, belief_matrix)
     # print(WAE_m)
     
-    frame = ['A', 'B', 'C', 'D']
-    k = 5
-    # Create a list of 5 identical BBAs
+    frame = list(belief_dict.keys())
+    k = cols # TODO: simplify
+    # Create a list of 5 identical BBAs ??WHY??
     # v =  [0.5316,0.1472,0.0521,0.2692]
     bbas = [create_bba(WAE_m, frame) for _ in range(k)]
+    # print(bbas)
     # for i, bba in enumerate(bbas, start=1):
     #     print(f"BBA {i}:")
     #     for key, value in sorted(bba.items()):
@@ -137,12 +136,8 @@ def dempster_combination_rule(bba1, bba2):
 
 
 def sum_rows(matrix,cols):
-    df = pd.DataFrame(matrix)
-    return df.sum(axis=1)/(cols-1)
+    return matrix.sum(axis=1)/(cols-1)
 
-def divide_one_by_elements(array):
-    new_array = [1 / element for element in array]
-    return new_array
 
 def average_elements_by_sum(array):
     total_sum = 0
@@ -150,23 +145,21 @@ def average_elements_by_sum(array):
         total_sum = total_sum + i
     new_array = [element / total_sum for element in array]
     return new_array
+
 def compute_belief_entropy(array):
     # a1 = 0.60;a2=0.10;a3=1e-12;a4=0.30 # nope
     cardinality = 1 #number of element in a set. {A} = 1 {A,C} = 2
     num_columns = len(array[0])
-    ED = [0] * num_columns    
-    index = 0
-    for col in zip(*array):
+    num_sensors, num_actions = array.shape
+    ED = np.zeros(num_sensors)    
+    for index, col in enumerate(array):
         ed = 0
-        col_index = 0
-        for element in col:
+        for col_index, element in enumerate(col):
             cardinality = 1
             if col_index == 3:
                 cardinality = 2
-            ed = ed + element*math.log2(element/(pow(2, cardinality) - 1))
-            col_index+=1
+            ed += element*np.log2(element/((2**cardinality) - 1))
         ED[index] = -ed
-        index+=1
     return ED
 
 def compute_information_volume(array):
