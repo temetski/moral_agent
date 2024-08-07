@@ -1,5 +1,7 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppopy
 import os
+import sys
+sys.path.insert(1, 'C:/D/LLM/Moral_RL/moral_agent/')
 import random
 import time
 from dataclasses import dataclass
@@ -35,7 +37,7 @@ class Args:
     """whether to save model into the `runs/{run_name}` folder"""
 
     # Algorithm specific arguments
-    env_id: str = "FindMilk"
+    env_id: str = "environments.milk:FindMilk" 
     """the id of the environment"""
     total_timesteps: int = 500000
     """total timesteps of the experiments"""
@@ -133,7 +135,9 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    run_name = f"{args.env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    env_name = args.env_id
+    run_name = f"{env_name.replace(':','.')}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    
     if args.track:
         import wandb
 
