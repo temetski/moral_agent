@@ -1,7 +1,8 @@
 runs
 
 # llm related ignores
-llm
+llm_venv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
