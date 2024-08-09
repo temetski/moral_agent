@@ -2,7 +2,7 @@ import gymnasium as gym
 from gymnasium import spaces, utils
 import numpy as np
 from typing import Optional
-
+from io import StringIO
 
 class Driving(gym.Env):
     def __init__(self, num_lanes=5, p_car=0.16, p_cat=0.09, sim_len=300, ishuman_n=True, ishuman_p=False,
@@ -74,7 +74,7 @@ class Driving(gym.Env):
         return min(max(x, 0), self.num_lanes-1)
 
     def step(self, action):   
-        print(self.scenario_prompt)
+        # print(self.scenario_prompt)
         print(self.state_as_text())  
         print(action)
         self.timestamp += 1
@@ -156,18 +156,50 @@ class Driving(gym.Env):
         action_text=''
         # action_text = "\n".join(f"Action {i}: going {self.action_as_text(i)} brings you closer to {cry[i]} crying and {baby[i]} sleeping babies." for i in self.actions)
         for i in self.actions:
+            car_collision_flag = False
+            cat_collision_flag = False
+            if car[0] >=0 and car[0] <=1:
+                car_collision_flag = True
+            if cat[0] >=0 and cat[0] <=3:
+                cat_collision_flag = True
+                
             if car[i] == -1 and cat[i]==-1:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat."
+                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both cars and cats."
             elif car[i] == -1 and cat[i] >-1 and cat[i] <=3:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with a car but you will end up colliding with a dying cat."
+                if car_collision_flag==False:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with a car but you will end up colliding with a dying cat."
+                elif car_collision_flag==True:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will end up colliding with cars and dying cats."
+                    
             elif car[i] == -2 and cat[i] == -2:
                 action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} is not possible as there is no lane on the {self.action_as_text(i)} side of your lane"
             elif car[i] == -1 and cat[i]>3:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat because there is no car and cat is at {cat[i]} unit distance."
-            elif car[i] >0 and cat[i] == -1:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat because there is no cat and car is at {car[i]} unit distance."
+                if car_collision_flag==False:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat because there is no car and cat is at {cat[i]} unit distance."
+                elif car_collision_flag==True:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will end up colliding with a car but will avoid colliding with a cat because the cat is at {cat[i]} unit distance."
+                    
+            elif car[i] >1 and cat[i] == -1:
+                if car_collision_flag==False and cat_collision_flag==False:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat because there is no cat and car is at {car[i]} unit distance."
+                elif car_collision_flag==False and cat_collision_flag==True:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with car but collide with a cat as the cat is at {cat[i]} unit distance."
+                elif car_collision_flag==True and cat_collision_flag==True:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will end up colliding with cars and dying cats."
+                elif car_collision_flag==True and cat_collision_flag==False:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will end up colliding with cars but avoid collision with cats."                
+            elif car[i] >=0 and car[i]<=1 and cat[i] == -1:
+                if car_collision_flag==False and cat_collision_flag==False:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will end up colliding with a car but avoid colliding with a cat because there is no cat and car is at {car[i]} unit distance."
+                elif car_collision_flag==False and cat_collision_flag==True:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will end up colliding with a car and a cat as the cat is at {cat[i]} unit distance."
+                elif car_collision_flag==True and cat_collision_flag==True:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will end up colliding with cars and dying cats."
+                elif car_collision_flag==True and cat_collision_flag==False:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will end up colliding with cars but avoid collision with cats."               
             else:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will bring you at risk of colliding with a car is at {car[i]} unit distance and a dying cat is at {cat[i]} unit distance in front of you."
+                if car_collision_flag==False and cat_collision_flag==False:
+                    action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will bring you at risk of colliding with a car at {car[i]} unit distance and a dying cat at {cat[i]} unit distance in front of you."
         state_template = """
 You are currently at lane {lane_number}. You can perform the following actions:
 """
@@ -188,6 +220,12 @@ You are currently at lane {lane_number}. You can perform the following actions:
             return
         else:  # self.render_mode in {"rgb_array"}:
             return
+        
+    def _render_text(self):
+        # desc = self.desc.copy().tolist()
+        outfile = StringIO()
+        out = [[c.decode("utf-8") for c in line] for line in self.map.tolist()]
+        # taxi_col, taxi_row = self.state[:2]
         
 gym.register(
     id="Driving",
