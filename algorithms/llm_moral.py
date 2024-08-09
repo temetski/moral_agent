@@ -214,9 +214,6 @@ This moral cluster is further guided by the following ethical theories:
 You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice as a dictionary of key:value pairs. Do not write reasoning or anything else after the lastline. The sum of all beliefs should be equal to 1."""),
             few_shot_prompt,
             ("human","{question}"),
-            # ("human", "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition.
-However, you encounter another group of 5 people stranded in the water who will certainly drown if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board. \nAction A: I will rescue 5 additional people. \nAction B: I will not rescue 5 additional people.\n{question}"),
-            
         ])
     return final_prompt
 
@@ -232,28 +229,17 @@ def call_llm_with_state_action(scenario_prompt,state,action,credences,model,fina
         weighted_Credences = f"Consequentialist: {c_Consequentialist}, Deontological: {c_Deontological}, Virtue Ethics: {c_Virtue}, Care Ethics: {c_Care}, Social Justice Ethics: {c_SocialJustice}"
         # print(weighted_Credences)
 
-        # state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition.
-However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
-        # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
 
         credence_text = "Behave as an agent that assigns the following credence values: {{" + weighted_Credences + "}}. Reason through using the credence confidence for moral theories."
         question_text = f"{scenario_prompt}{state}\n\n{action}\n\n{credence_text}"
         question_text_all.append(question_text)
         # print(question_text)
-        # formattedChatPrompt = final_prompt.format_messages(question="You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition.
-However, you encounter another group of 5 people stranded in the water who will certainly drown if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board. \n Action A: I will rescue 5 additional people. \n Action B: I will not rescue 5 additional people. Behave as an agent that assigns the following credence values: {}. Reason through using the credence as weighted confidence for moral theories and output 
-What action will you choose as Final answer:?
-")
         formattedChatPrompt = final_prompt.format_messages(question=question_text)
         response = model.invoke(formattedChatPrompt)
-        # print("Response Content: ", response.content)
-        value = response.content.split('\n')
 
         print(response.content)
 
-        dict_pattern = r'\{(?
-:[^{}]|(?
-R))*\}'
+        dict_pattern = r'\{(?:[^{}]|(?R))*\}'
         pattern = regex.compile(dict_pattern)
 
         
@@ -276,17 +262,18 @@ if __name__=="__main__":
     # Set the diagonal elements
     for i in range(NUM_MORAL):
         credences[i, i] = 1
-
+    # state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
+    # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
     model = create_llm_env("no-key")
 
-    scenario_prompt = "You are tasked with finding milk as quickly as possible in a room filled with babies. Most babies are sleeping, however, there are some babies that are crying. Passing by the parts of the room with a baby will disturb the baby, but passing by a crying baby will pacify them. Currently there are 9 crying babies in the room."
+    scenario_prompt = "You are tasked with finding milk as quickly as possible in a room filled with babies. Most babies are sleeping, however, there are some babies that are crying. Passing by the parts of the room with a sleeping baby will disturb the baby, but going near a crying baby will pacify them. Currently there are 9 crying babies in the room."
     
-    state = "You are currently at position (9, 7) and the milk is at position (9,9). You can perform the following actions."
+    state = "You are currently at position (9, 7) and the milk is at position (9,9). You can perform the following actions:"
 
     action = """Action A: Going up brings you closer to 0 crying and 0 sleeping babies
-Action B: Going down brings you closer to 10 crying and 0 sleeping babies.
+Action B: Going down brings you closer to 5 crying and 0 sleeping babies.
 Action C: Going left brings you closer to 1 crying and 1 sleeping babies.
-Action D: going right brings you closer to 0 crying and 2 sleeping babies."""
+Action D: Going right brings you closer to 0 crying and 2 sleeping babies."""
 
     final_prompt = few_shot_prompt_training()
     call_llm_with_state_action(scenario_prompt,state,action,credences,model,final_prompt)
