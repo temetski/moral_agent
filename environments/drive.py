@@ -70,7 +70,7 @@ class Driving(gym.Env):
     def clip(self, x):
         return min(max(x, 0), self.num_lanes-1)
 
-    def step(self, action):   
+    def step(self, action):
         self.timestamp += 1
         if action not in self.action_space:
             raise AssertionError
@@ -101,8 +101,7 @@ class Driving(gym.Env):
             for car in self.cars[self.lane]:
                 if car <= 0:
                     car_hit += 1
-                    
-        # print(self.state_as_text())
+
         
         for lane in range(self.num_lanes):
             self.cats[lane] = [pos for pos in self.cats[lane] if pos > 0]
@@ -150,20 +149,19 @@ class Driving(gym.Env):
         # action_text = "\n".join(f"Action {i}: going {self.action_as_text(i)} brings you closer to {cry[i]} crying and {baby[i]} sleeping babies." for i in self.actions)
         for i in self.actions:
             if car[i] == -1 and cat[i]==-1:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat."
+                action_text += "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat."
             elif car[i] == -1 and cat[i] >-1 and cat[i] <=3:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with a car but you will end up colliding with a dying cat."
+                action_text += "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with a car but you will end up colliding with a dying cat."
             elif car[i] == -2 and cat[i] == -2:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} is not possible as there is no lane on the {self.action_as_text(i)} side of your lane"
+                action_text += "\n" + f"Action {i}: steering {self.action_as_text(i)} is not possible as there is no lane on the {self.action_as_text(i)} side of your lane"
             elif car[i] == -1 and cat[i]>3:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat because there is no car and cat is at {cat[i]} unit distance."
+                action_text += "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat because there is no car and cat is at {cat[i]} unit distance."
             elif car[i] >0 and cat[i] == -1:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat because there is no cat and car is at {car[i]} unit distance."
+                action_text += "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with both car and cat because there is no cat and car is at {car[i]} unit distance."
             else:
-                action_text = action_text + "\n" + f"Action {i}: steering {self.action_as_text(i)} will bring you at risk of colliding with a car is at {car[i]} unit distance and a dying cat is at {cat[i]} unit distance in front of you."
-        state_template = """
-You are currently at lane {lane_number}. You can perform the following actions:
-"""
+                action_text += "\n" + f"Action {i}: steering {self.action_as_text(i)} will bring you at risk of colliding with a car is at {car[i]} unit distance and a dying cat is at {cat[i]} unit distance in front of you."
+        state_template = """You are currently at lane {lane_number}. You can perform the following actions:"""
+
         state_text = state_template.format(lane_number=lane_number)
         return state_text, action_text
     
