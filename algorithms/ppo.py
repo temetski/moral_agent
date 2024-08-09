@@ -135,9 +135,8 @@ if __name__ == "__main__":
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
-    env_name = args.env_id
-    run_name = f"{env_name.replace(':','.')}__{args.exp_name}__{args.seed}__{int(time.time())}"
-    
+    env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
+    run_name = f"{env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
     if args.track:
         import wandb
 
