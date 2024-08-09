@@ -166,7 +166,6 @@ Based these ethical credences, the probabilities of each action are: {"build": 0
         ]
     )
     few_shot_prompt = FewShotChatMessagePromptTemplate(
-        input_variables=["question"],
         example_prompt=example_prompt,
         examples=example_all_moral_clusters,
     )
@@ -213,7 +212,7 @@ This moral cluster is further guided by the following ethical theories:
 
 You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice as a dictionary of key:value pairs. Do not write reasoning or anything else after the lastline. The sum of all beliefs should be equal to 1."""),
             few_shot_prompt,
-            ("human","{question}"),
+            ("human", "{scenario}"),
         ])
     return final_prompt
 
@@ -234,7 +233,7 @@ def call_llm_with_state_action(scenario_prompt,state,action,credences,model,fina
         question_text = f"{scenario_prompt}{state}\n\n{action}\n\n{credence_text}"
         question_text_all.append(question_text)
         # print(question_text)
-        formattedChatPrompt = final_prompt.format_messages(question=question_text)
+        formattedChatPrompt = final_prompt.format_messages(scenario=question_text)
         response = model.invoke(formattedChatPrompt)
 
         print(response.content)
