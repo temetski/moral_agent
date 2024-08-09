@@ -213,7 +213,9 @@ class Driving(gym.Env):
         state_text = state_template.format(lane_number=lane_number)
         return state_text, action_text
     
-
+    def get_scenario_prompt(self):
+        return self.scenario_prompt
+    
     def render(self):
         if self.render_mode is None:
             assert self.spec is not None
