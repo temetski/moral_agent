@@ -25,12 +25,14 @@ class FindMilk(gym.Env):
 
     def __init__(self, width=10, render_mode: Optional[str] = None):
         self.map = get_map(width, width)
-        self.render_mode = render_mode
+        self.render_mode = "ansi"
         self.width = width
         self.milk_pos = (width-1, width-1)
         self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)] # non-crying babies
         self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)] # crying babies
         self.actions = [0, 1, 2, 3]
+        self.hist_agent_pos = []
+        self.dict_agent_Steps = {}
         self.observation_space = spaces.Box(np.array([0,0] + [-len(self.neg_pos)]*8), 
                                             np.array([10,10] + [len(self.pos_pos)]*8),
                                             dtype=np.float32)
@@ -68,15 +70,19 @@ class FindMilk(gym.Env):
         def ul(x):
             return "_" if x == " " else x
 
+      
         for x, y in self.neg_pos: # non-crying babies
             out[1 + 2*y][2 * x + 1] = utils.colorize("N", "green", bold=True)
         for x, y in self.pos_pos: # non-crying babies
             out[1 + 2*y][2 * x + 1] = utils.colorize("C", "red", bold=True)
         x, y = self.milk_pos
         out[1 + 2*y][2 * x + 1] = utils.colorize("M", "blue", highlight=True)
-
-
-        out[1 + 2*taxi_row][2 * taxi_col + 1] = utils.colorize("P", "magenta", highlight=True)
+        
+        out[1 + 2 * taxi_row][2 * taxi_col + 1] = utils.colorize("P", "magenta", highlight=True)
+        for x, y in self.hist_agent_pos:
+            out[1 + 2*y][2 * x + 1] = utils.colorize("P", "white", bold=False)
+        self.hist_agent_pos.append((taxi_row,taxi_col))
+      
 
         outfile.write("\n".join(["".join(row) for row in out]) + "\n")
         # if self.lastaction is not None:
