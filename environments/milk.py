@@ -72,8 +72,9 @@ class FindMilk(gym.Env):
         out[1 + 2*y][2 * x + 1] = utils.colorize("M", "blue", highlight=True)
         
         out[1 + 2 * taxi_row][2 * taxi_col + 1] = utils.colorize("P", "magenta", highlight=True)
-        for x, y in self.hist_agent_pos:
-            out[1 + 2*y][2 * x + 1] = utils.colorize("P", "white", bold=False)
+        if len(self.hist_agent_pos)>0:
+            for x, y in self.hist_agent_pos:
+                out[1 + 2*y][2 * x + 1] = utils.colorize("P", "white", bold=False)
         self.hist_agent_pos.append((taxi_row,taxi_col))
       
 

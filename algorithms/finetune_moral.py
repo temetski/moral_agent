@@ -8,7 +8,8 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 import os
 import sys
-sys.path.insert(1, 'C:/D/LLM/Moral_RL/moral_agent/') #fix this
+# sys.path.insert(1, 'C:/D/LLM/Moral_RL/moral_agent/') #fix this
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training
 
