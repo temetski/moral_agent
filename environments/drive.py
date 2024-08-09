@@ -7,21 +7,18 @@ from typing import Optional
 class Driving(gym.Env):
     def __init__(self, num_lanes=5, p_car=0.16, p_cat=0.09, sim_len=300, ishuman_n=True, ishuman_p=False,
                  render_mode: Optional[str] = None):
-        
         self.num_lanes = num_lanes
         self.road_length = 8
         self.car_speed = 1
         self.cat_speed = 3
         self.observation_space = gym.spaces.Dict({
             "lane_pos":  gym.spaces.Discrete(5),
-            "count": gym.spaces.Box(low=-1, high=20, shape=(2*3,)),
-        }) #count is arranged in this order - dist_car_left,dist_cat_left,dist_car_current,dist_cat_current,dist_car_right,dist_cat_right
+            "distance": gym.spaces.Box(low=-1, high=20, shape=(2*3,)),
+        }) #distance is arranged in this order - dist_car_left,dist_cat_left,dist_car_current,dist_cat_current,dist_car_right,dist_cat_right
         self.action_space = spaces.Discrete(3)  # straight, right, left
-        self.actions = [0, 1, 2]
-        # self.p_car = p_car
-        # self.p_cat = p_cat
-        self.p_car = 0.8
-        self.p_cat = 0.9
+        self.actions = list(range(self.action_space.n))
+        self.p_car = p_car
+        self.p_cat = p_cat
         self.sim_len = sim_len
         self.ishuman_n = ishuman_n
         self.ishuman_p = ishuman_p
@@ -46,7 +43,7 @@ class Driving(gym.Env):
         return self.state, {}
 
     def checker(self, lane):
-        substate = self.state["count"]
+        substate = self.state["distance"]
         if len(self.cars[lane]) == 0:
             substate.append(-1)
         else:
@@ -58,25 +55,22 @@ class Driving(gym.Env):
 
     def state_generator(self):
         self.state = {"lane_pos": self.lane,
-                      "count": []}
+                      "distance": []}
 
         self.checker(self.lane) # your lane is center lane. Egoistic 
         if self.lane > 0:
             self.checker(self.lane-1) #left lane of current
         else:
-            self.state["count"].extend((-2, -2))
+            self.state["distance"].extend((-2, -2))
         if self.lane < self.num_lanes-1: 
             self.checker(self.lane+1) #right lane of current
         else:
-            self.state["count"].extend((-2, -2))
+            self.state["distance"].extend((-2, -2))
 
     def clip(self, x):
         return min(max(x, 0), self.num_lanes-1)
 
     def step(self, action):   
-        print(self.scenario_prompt)
-        print(self.state_as_text())  
-        print(action)
         self.timestamp += 1
         if action not in self.action_space:
             raise AssertionError
@@ -131,8 +125,7 @@ class Driving(gym.Env):
         if self.timestamp >= self.sim_len:
             self.done = True
 
-                 
-        print(self.log())  
+
         self.state_generator()  
         return self.state, reward, self.done, 0, {}
 
@@ -149,7 +142,7 @@ class Driving(gym.Env):
     
     def state_as_text(self):        
         lane_number = self.state["lane_pos"]        
-        dist_car_current,dist_cat_current,dist_car_left,dist_cat_left,dist_car_right,dist_cat_right = self.state["count"]
+        dist_car_current,dist_cat_current,dist_car_left,dist_cat_left,dist_car_right,dist_cat_right = self.state["distance"]
         
         car = [dist_car_current,dist_car_right,dist_car_left]
         cat = [dist_cat_current,dist_cat_right,dist_cat_left]
