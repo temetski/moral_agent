@@ -1,7 +1,7 @@
 # docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppopy
 import os
 import sys
-sys.path.insert(1, 'C:/D/LLM/Moral_RL/moral_agent/')
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 import random
 import time
 from dataclasses import dataclass
@@ -37,7 +37,6 @@ class Args:
     """whether to save model into the `runs/{run_name}` folder"""
 
     # Algorithm specific arguments
-    # env_id: str = "environments.milk:FindMilk" 
     env_id: str = "environments.drive:Driving"
     """the id of the environment"""
     total_timesteps: int = 500000
