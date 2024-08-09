@@ -236,10 +236,10 @@ if __name__ == "__main__":
         print("SPS:", int(global_step / (time.time() - start_time)))
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
-    if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-        model_path = f"runs/{run_name}/{args.exp_name}_{iteration}.cleanrl_model"
-        torch.save(agent.state_dict(), model_path)
-        print(f"model saved to {model_path}")
+        if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
+            model_path = f"runs/{run_name}/{args.exp_name}_{iteration}.cleanrl_model"
+            torch.save(agent.state_dict(), model_path)
+            print(f"model saved to {model_path}")
 
     envs.close()
     writer.close()
