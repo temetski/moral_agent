@@ -70,11 +70,11 @@ class Driving(gym.Env):
     def clip(self, x):
         return min(max(x, 0), self.num_lanes-1)
 
-    def step(self, action):   
-        # print(self.scenario_prompt)
-        print(self.state_as_text())  
-        print(action)
     def step(self, action):
+        st, at = self.state_as_text()
+        print(st)
+        print(at)  
+        print(action)
         self.timestamp += 1
         if action not in self.action_space:
             raise AssertionError
@@ -206,7 +206,7 @@ class Driving(gym.Env):
           
             else:
                 if car_collision_flag==False and cat_collision_flag==False:
-                    action_text += "\n" + f"Action {i}: steering {self.action_as_text(i)} will bring you at risk of colliding with a car at {car[i]} unit distance and a dying cat at {cat[i]} unit distance in front of you. - Rohit"
+                    action_text += "\n" + f"Action {i}: steering {self.action_as_text(i)} will avoid collision with a car at {car[i]} unit distance and a dying cat at {cat[i]} unit distance in front of you."
         
         state_template = """You are currently at lane {lane_number}. You can perform the following actions:"""
 
