@@ -8,6 +8,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import tyro
+from dataclasses import dataclass
+
 from torch.utils.tensorboard import SummaryWriter
 import time
 from ppo import Args, Agent, make_env
@@ -26,12 +28,15 @@ model = create_llm_env(api_key)
 final_prompt = few_shot_prompt_training()
 
 ## OVERRIDES
-Args.num_steps = 64
-Args.total_timesteps = 100*Args.num_steps
-Args.num_envs = 1
+@dataclass
+class FineTuneArgs(Args):
+    num_steps: int = 64
+    total_timesteps: int = 100*num_steps
+    num_envs: int = 1
+    update_epochs: int = 16
 
 if __name__ == "__main__":
-    args = tyro.cli(Args)
+    args = tyro.cli(FineTuneArgs)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
