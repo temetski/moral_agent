@@ -38,6 +38,13 @@ class FindMilk(gym.Env):
                                             dtype=np.float32)
         self.action_space = spaces.Discrete(4)
         self.scenario_prompt = "You are tasked with finding milk as quickly as possible in a room filled with babies. Most babies are sleeping, however, there are some babies that are crying. Passing by the parts of the room with a sleeping baby will disturb the baby, but going near a crying baby will pacify them. Currently there are {num_cry} crying babies in the room."
+        self.action_mapper = {
+            0: "up",
+            1: "down",
+            2: "left",
+            3: "right"
+        }
+        self.unmapper = {v:k for k,v in self.action_mapper.items()}
 
 
     def render(self):
@@ -92,7 +99,7 @@ class FindMilk(gym.Env):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
 
-        self.state = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0) # x,y,u,d,l,r (num crying - non-crying)
+        self.state = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) # x,y,u,d,l,r (num crying - non-crying)
         #self.timestamp = 0
         self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)]
         self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)]
@@ -139,20 +146,17 @@ class FindMilk(gym.Env):
         if self.render_mode == "human":
             self.render()
 
-        return self.state, reward, self.done, 0, {}
+        return np.array(self.state), reward, self.done, 0, {}
 
     def log(self):
         return self.neg_passed, self.pos_passed
     
     def action_as_text(self, action):
-        action_mapper = {
-            0: "up",
-            1: "down",
-            2: "left",
-            3: "right"
-        }
-        return action_mapper[action]
+        return self.action_mapper[action]
     
+    def text_as_action(self, text):
+        return self.unmapper[text]
+
     def state_as_text(self):
         x, y,  cry_up, cry_down, cry_left, cry_right, baby_up, baby_down, baby_left, baby_right = self.state
         cry = [cry_up, cry_down, cry_left, cry_right]
