@@ -49,16 +49,17 @@ def run(config):
     steps = 0
     frames = []
     itr = 0
+    unwrapped_env = envs.envs[0]
     while not done:
         # action = env.action_space.sample()
         action, logprob, _, value = agent.get_action_and_value(next_obs)
-        state, reward, terminated, truncated, info = envs.envs[0].step(action)
+        state, reward, terminated, truncated, info = envs.step(action.cpu().numpy())
         done = np.logical_or(terminated, truncated)
         itr=itr+1
-        neg_passed, pos_passed = envs.envs[0].log()
+        neg_passed, pos_passed = unwrapped_env.log()
         # Put each rendered frame into dict for animation
         frames.append({
-            'frame': envs.envs[0].render(),
+            'frame': unwrapped_env.render(),
             'state': state,
             'action': action,
             'reward': reward,
