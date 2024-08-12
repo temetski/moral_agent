@@ -8,22 +8,24 @@ from IPython.display import clear_output
 from time import sleep
 import argparse
 
-
-def print_frames(env_id,frames, dt=0.1):
-    if env_id=="environments.drive:Driving":
+def print_frames(env_id, frames, dt=0.1, indices=None):
+    if "Driving" in env_id:
         #visualize Driving
         print("No visualization yet")
     else:
+        if indices is None:
+            indices = list(range(len(frames)))
         for i, frame in enumerate(frames):
-            clear_output(wait=True)
-            print(frame['frame'])
-            print(f"Timestep: {i + 1}")
-            print(f"State: {frame['state']}")
-            print(f"Action: {frame['action']}")
-            print(f"Reward: {frame['reward']}")
-            print(f"Passed non-crying babies: {frame['passed non-crying babies']}")
-            print(f"Passed crying babies: {frame['passed crying babies']}")
-            sleep(dt)
+            if i in indices:
+                clear_output(wait=True)
+                print(frame['frame'])
+                print(f"Timestep: {i + 1}")
+                print(f"State: {frame['state']}")
+                print(f"Action: {frame['action']}")
+                print(f"Reward: {frame['reward']}")
+                print(f"Passed non-crying babies: {frame['passed non-crying babies']}")
+                print(f"Passed crying babies: {frame['passed crying babies']}")
+                sleep(dt)
             
 def run(config):    
     # args = tyro.cli(Args)
