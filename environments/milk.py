@@ -85,7 +85,7 @@ class FindMilk(gym.Env):
         self.hist_agent_pos.append((taxi_col, taxi_row))
       
 
-        outfile.write("\n".join(["".join(row) for row in out]) + "\n")
+        outfile.write("\n".join(["".join(row) for row in out[::-1]]) + "\n")
         with closing(outfile):
             return outfile.getvalue()
         
