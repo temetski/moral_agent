@@ -23,7 +23,19 @@ final_prompt = few_shot_prompt_training()
 def print_frames(env_id, frames, dt=0.1, indices=None):
     if "Driving" in env_id:
         #visualize Driving
-        print("No visualization yet")
+        print("No visualization yet")   
+        if indices is None:
+            indices = list(range(len(frames)))
+        for i, frame in enumerate(frames):
+            if i in indices:
+                clear_output(wait=True)
+                print(f"Timestep: {i + 1}")
+                # print(f"State: {frame['state']}")
+                # print(f"Action: {frame['action']}")
+                # print(f"Reward: {frame['reward']}")
+                print(f"Number of collisions: {frame['metric_1']}")
+                print(f"Number of hit cats: {frame['metric_2']}")
+                sleep(dt)     
     else:
         if indices is None:
             indices = list(range(len(frames)))
@@ -35,8 +47,8 @@ def print_frames(env_id, frames, dt=0.1, indices=None):
                 print(f"State: {frame['state']}")
                 print(f"Action: {frame['action']}")
                 print(f"Reward: {frame['reward']}")
-                print(f"Passed non-crying babies: {frame['passed non-crying babies']}")
-                print(f"Passed crying babies: {frame['passed crying babies']}")
+                print(f"Passed sleeping babies: {frame['metric_1']}")
+                print(f"Passed crying babies: {frame['metric_2']}")
                 sleep(dt)
             
 def run(config):    
@@ -77,15 +89,16 @@ def run(config):
         state, reward, terminated, truncated, info = env.step(action.cpu().numpy())
         done = np.logical_or(terminated, truncated)
         itr=itr+1
-        neg_passed, pos_passed = env.log()
+
+        metric_1, metric_2 = env.log()
         # Put each rendered frame into dict for animation
         frames.append({
             'frame': env.render(),
             'state': state,
             'action': action,
             'reward': reward,
-            'passed non-crying babies' : neg_passed,
-            'passed crying babies' : pos_passed
+            'metric_1' : metric_1,
+            'metric_2' : metric_2
             }
         )
         next_obs, next_done = torch.Tensor(state).to(device), torch.Tensor(done).to(device)
@@ -100,7 +113,9 @@ if __name__ == '__main__':
     parser.add_argument("--env_id", default="environments.drive:Driving", type=str)  #"environments.drive:Driving"
     parser.add_argument("--num_envs", default=1, type=int)
     parser.add_argument("--seed", default=1, type=int)
-    parser.add_argument("--model_path", default="runs/PreTrainedDriveModel/ppo.cleanrl_model", type=str) #PreTrainedDriveModel
+    # parser.add_argument("--model_path", default="runs/PreTrainedDriveModel/ppo.cleanrl_model", type=str) #Base model with both ishuman_p and n as False 
+    # parser.add_argument("--model_path", default="runs/Driving__ppo__1__moral/ppo_20.cleanrl_model", type=str) #MOral model with both ishuman_p and n as False 
+    parser.add_argument("--model_path", default="runs/Driving__ppo__1__1723536122/ppo.cleanrl_model", type=str) #Base model with ishuman_p=True
     parser.add_argument("--capture_video", default=False, type=bool)
     parser.add_argument("--debug_llm", action="store_true")
 

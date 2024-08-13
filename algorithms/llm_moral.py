@@ -220,6 +220,7 @@ You will make your decisions on complex scenarios following the above moral code
 
 def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt):        
     question_text_all = []
+    question_response_dict = {}
     i=0
     votes = []
     belief_dict = {i: 0 for i in range(5)}
@@ -234,12 +235,13 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         credence_text = "Behave as an agent that assigns the following credence values: {{" + weighted_Credences + "}}. Reason through using the credence confidence for moral theories."
         question_text = f"{scenario_prompt}{state}\n\n{action}\n\n{credence_text}"
         question_text_all.append(question_text)
+        # question_text_log.append(question_text)
         # print(question_text)
         formattedChatPrompt = final_prompt.format_messages(scenario=question_text)
         response = model.invoke(formattedChatPrompt)
-
+        # response_text_log.append(response.content)
         # print(response.content)
-
+        question_response_dict[question_text] = response.content
         dict_pattern = r'\{(?:[^{}]|(?R))*\}'
         pattern = regex.compile(dict_pattern)
 
@@ -276,7 +278,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         # assert sum_of_belief>0, f"ERROR: beliefs cannot be zero. \n{response.content}"
         belief_dict[i] = one_row
         i+=1
-    return belief_dict
+    return belief_dict, question_response_dict
 
 if __name__=="__main__":
     # debugging examples
@@ -299,4 +301,4 @@ Action C: Going left brings you closer to 1 crying and 1 sleeping babies.
 Action D: Going right brings you closer to 0 crying and 2 sleeping babies."""
 
     final_prompt = few_shot_prompt_training()
-    call_llm_with_state_action(scenario_prompt,state,action,credences,model,final_prompt)
+    beliefs, question_response_dict,step = call_llm_with_state_action(scenario_prompt,state,action,credences,model,final_prompt)
