@@ -4,6 +4,7 @@ import numpy as np
 from typing import Optional
 from io import StringIO
 from contextlib import closing 
+from copy import copy
 
 corner = "+"
 wall = "|"
@@ -30,6 +31,8 @@ class FindMilk(gym.Env):
         self.milk_pos = (width-1, width-1)
         self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)] # non-crying babies
         self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)] # crying babies
+        self.cry_positions = copy(self.pos_pos)
+        self.sleep_positions = copy(self.neg_pos)
         self.actions = [0, 1, 2, 3]
         self.hist_agent_pos = []
         self.dict_agent_Steps = {}
@@ -67,14 +70,10 @@ class FindMilk(gym.Env):
         outfile = StringIO()
         out = [[c.decode("utf-8") for c in line] for line in self.map.tolist()]
         taxi_col, taxi_row = self.state[:2]
-
-        def ul(x):
-            return "_" if x == " " else x
-
-      
-        for x, y in self.neg_pos: # non-crying babies
+    
+        for x, y in self.sleep_positions: # non-crying babies
             out[1 + 2*y][2 * x + 1] = utils.colorize("S", "green", bold=True)
-        for x, y in self.pos_pos: # non-crying babies
+        for x, y in self.cry_positions: # crying babies
             out[1 + 2*y][2 * x + 1] = utils.colorize("C", "red", bold=True)
         x, y = self.milk_pos
         out[1 + 2*y][2 * x + 1] = utils.colorize("M", "blue", highlight=True)
@@ -82,18 +81,11 @@ class FindMilk(gym.Env):
         out[1 + 2 * taxi_row][2 * taxi_col + 1] = utils.colorize("P", "magenta", highlight=True)
         if len(self.hist_agent_pos)>0:
             for x, y in self.hist_agent_pos:
-                out[1 + 2*y][2 * x + 1] = utils.colorize("P", "white", bold=False)
-        self.hist_agent_pos.append((taxi_row,taxi_col))
+                out[1 + 2*y][2 * x + 1] = utils.colorize(out[1 + 2*y][2 * x + 1], "white", highlight=True)
+        self.hist_agent_pos.append((taxi_col, taxi_row))
       
 
         outfile.write("\n".join(["".join(row) for row in out]) + "\n")
-        # if self.lastaction is not None:
-        #     outfile.write(
-        #         f"  ({['South', 'North', 'East', 'West', 'Pickup', 'Dropoff'][self.lastaction]})\n"
-        #     )
-        # else:
-        #     outfile.write("\n")
-
         with closing(outfile):
             return outfile.getvalue()
         
