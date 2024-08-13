@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 import tyro
 from dataclasses import dataclass
-
+from logger import Logger
 from torch.utils.tensorboard import SummaryWriter
 
 import time
@@ -28,21 +28,25 @@ api_key = os.environ.get("OPENAI_API_KEY", "none")
 model = create_llm_env(api_key)
 final_prompt = few_shot_prompt_training()
 
-def log(writer,question_response_dict,step,reward_dict,action):   
-    text = f"Step {step}\n"
-    i = 0
-    for key, value in question_response_dict.items():
-        text += f"-------Question Prompt with credence index - {i}-------\n {key}\n -------Response Prompt-------\n{value}\n--------------------------------------\n"
-        i+=1
-    # print(text)
-        
-    writer.add_text("LLM Prompts",
-        text,
-        )
-    print(f"{reward_dict}\n {action}\n")
-    writer.add_text("Reward & Action",
-        f"Step {step}\n{reward_dict}\n {action}\n",
-        )
+def log(logger,writer,question_response_dict,step,reward_dict,action):
+    if args.write_to_csv==False:
+        text = f"Step {step}\n"
+        i = 0
+        for key, value in question_response_dict.items():
+            text += f"-------Question Prompt with credence index - {i}-------\n {key}\n -------Response Prompt-------\n{value}\n--------------------------------------\n"
+            i+=1
+        # print(text)
+            
+        writer.add_text("LLM Prompts",
+            text,
+            )
+        print(f"{reward_dict}\n {action}\n")
+        writer.add_text("Reward & Action",
+            f"Step {step}\n{reward_dict}\n {action}\n",
+            )
+    else:
+        for key, value in question_response_dict.items():
+            logger.log(step=step, question=key, response=value, reward=reward_dict, action=action)
    
     
 ## OVERRIDES
@@ -78,6 +82,7 @@ if __name__ == "__main__":
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
 
+    logger = Logger(f"runs/{run_name}/log.csv")
     # TRY NOT TO MODIFY: seeding
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -93,7 +98,7 @@ if __name__ == "__main__":
 
     agent = Agent(envs).to(device)
     # LOADPATH = "runs/FindMilk__ppo__42__base/ppo.cleanrl_model" #Remove hardcode folderpath
-    LOADPATH = "runs/Driving__ppo__1__1723536122/ppo.cleanrl_model"
+    LOADPATH = "runs/Driving__ppo__1__1723551933/ppo.cleanrl_model"
     agent.load_state_dict(torch.load(LOADPATH))
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -138,22 +143,21 @@ if __name__ == "__main__":
             shaping_reward = []
             for i in range(args.num_envs):
                 unwrapped_env = envs.envs[i].unwrapped
-                if tuple(unwrapped_env.state) not in history:
-                    state_text, action_text = unwrapped_env.state_as_text()
-                    actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
-                    scenario_prompt = unwrapped_env.get_scenario_prompt()
-                    beliefs, question_response_dict = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)                
+                # if tuple(unwrapped_env.state) not in history:
+                state_text, action_text = unwrapped_env.state_as_text()
+                actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
+                scenario_prompt = unwrapped_env.get_scenario_prompt()
+                beliefs, question_response_dict = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)                
                     # print(beliefs) # TODO: process as shaping rewards
-                
-                
-                    reward_dict = belief_to_reward(beliefs, actionsets)
-                    history[tuple(unwrapped_env.state)] = reward_dict
-                else:
-                    print("Note: using cached LLM response")
-                    reward_dict = history[tuple(unwrapped_env.state)]
+            
+                reward_dict = belief_to_reward(beliefs, actionsets)
+                history[tuple(unwrapped_env.state)] = reward_dict
+                # else:
+                #     print("Note: using cached LLM response")
+                #     reward_dict = history[tuple(unwrapped_env.state)]
                 shaping_reward.append(reward_dict[frozenset([str(the_actions[i])])])
                 if step%10==0: #log after every 10 steps - TODO: Make logging step as variable
-                    log(writer,question_response_dict,step,reward_dict,action.cpu().numpy())
+                    log(logger,writer,question_response_dict,step,reward_dict,action.cpu().numpy())
                 # Cache state-action prompts to save processing time
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
 
