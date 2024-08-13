@@ -74,7 +74,7 @@ if __name__ == "__main__":
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs).to(device)
-    LOADPATH = "runs/FindMilk__ppo__42__base/ppo.cleanrl_model" #Remove hardcode folderpath
+    LOADPATH = "runs/FindMilk-v2__ppo__42__base/ppo.cleanrl_model" #Remove hardcode folderpath
     agent.load_state_dict(torch.load(LOADPATH))
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -94,6 +94,7 @@ if __name__ == "__main__":
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
+    history = {}
     for iteration in range(1, args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
@@ -118,17 +119,23 @@ if __name__ == "__main__":
             shaping_reward = []
             for i in range(args.num_envs):
                 unwrapped_env = envs.envs[i].unwrapped
-                state_text, action_text = unwrapped_env.state_as_text()
-                actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
-                scenario_prompt = unwrapped_env.get_scenario_prompt()
-                beliefs = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)
-                # print(beliefs) # TODO: process as shaping rewards
-                reward_dict = belief_to_reward(beliefs, actionsets)
+                if tuple(unwrapped_env.state) not in history:
+                    state_text, action_text = unwrapped_env.state_as_text()
+                    actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
+                    scenario_prompt = unwrapped_env.get_scenario_prompt()
+                    beliefs = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)
+                    # print(beliefs) # TODO: process as shaping rewards
+                    reward_dict = belief_to_reward(beliefs, actionsets)
+                    history[tuple(unwrapped_env.state)] = reward_dict
+                else:
+                    print("Note: using cached LLM response")
+                    reward_dict = history[tuple(unwrapped_env.state)]
                 shaping_reward.append(reward_dict[frozenset([str(the_actions[i])])])
-                # TODO: cache state-action prompts to save processing time
-                # history[tuple(state)] = reward_dict
+                # Cache state-action prompts to save processing time
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
 
+            # The shaping reward is 1-p_sensor, to strongly disincentivise taking the least moral action.
+            shaping_reward = np.add(shaping_reward, -1)
             reward = np.add(reward, shaping_reward)
 
             next_done = np.logical_or(terminations, truncations)
