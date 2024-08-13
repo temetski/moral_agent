@@ -44,42 +44,43 @@ def run(config):
     run_name = f"{config.env_id.replace(':','.')}__{config.exp_name}__{config.seed}__moral"
     # env = gym.make('environments.milk:FindMilk', render_mode='ansi', max_episode_steps=1500)
     # env = gym.make('environments.drive:Driving', render_mode='ansi', max_episode_steps=1500)
-    envs = gym.vector.SyncVectorEnv(
-        [make_env(config.env_id, i, config.capture_video, run_name) for i in range(config.num_envs)],
-    )
-    assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
+    # envs = gym.vector.SyncVectorEnv(
+    #     [make_env(config.env_id, i, config.capture_video, run_name) for i in range(config.num_envs)],
+    # )
+    env = gym.make(config.env_id, render_mode='ansi')
+    # Mimic SyncVectorEnv for cleanrl's PPO
+    env.single_action_space = env.action_space
+    env.single_observation_space = env.observation_space
 
     device = torch.device("cuda" if torch.cuda.is_available() and config.cuda else "cpu")
-    agent = Agent(envs).to(device)
+    agent = Agent(env).to(device)
 
     agent.load_state_dict(torch.load(config.model_path))
-    # envs.envs[0].render_mode='ansi'
-    next_obs, _ = envs.reset(seed=config.seed)
+
+    next_obs, _ = env.reset(seed=config.seed)
     next_obs = torch.Tensor(next_obs).to(device)
-    # done = False
-    done = torch.zeros(1).to(device)
+    done = False
     steps = 0
     frames = []
     itr = 0
 
-    unwrapped_env = envs.envs[0].unwrapped
     while not done:
         # action = env.action_space.sample()
         action, logprob, _, value = agent.get_action_and_value(next_obs)
         if config.debug_llm:
-            print(unwrapped_env.render())
-            state_text, action_text = unwrapped_env.state_as_text()
-            actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
-            scenario_prompt = unwrapped_env.get_scenario_prompt()
+            print(env.render())
+            state_text, action_text = env.state_as_text()
+            actionsets = [frozenset([str(k)]) for k in env.action_mapper.keys()] #TODO: review str casting 
+            scenario_prompt = env.get_scenario_prompt()
             call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)
 
-        state, reward, terminated, truncated, info = envs.step(action)
+        state, reward, terminated, truncated, info = env.step(action)
         done = np.logical_or(terminated, truncated)
         itr=itr+1
-        neg_passed, pos_passed = unwrapped_env.log()
+        neg_passed, pos_passed = env.log()
         # Put each rendered frame into dict for animation
         frames.append({
-            'frame': unwrapped_env.render(),
+            'frame': env.render(),
             'state': state,
             'action': action,
             'reward': reward,
@@ -90,7 +91,7 @@ def run(config):
         next_obs, next_done = torch.Tensor(state).to(device), torch.Tensor(done).to(device)
         
         steps += 1
-    envs.close()
+    env.close()
     return frames
 
 if __name__ == '__main__':    
