@@ -1,12 +1,24 @@
 import gymnasium as gym
 import torch
-
+import os
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 from algorithms.ppo import Agent, make_env
 from IPython.display import clear_output
 from time import sleep
 import argparse
+from algorithms.llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training
+
+NUM_MORAL = 5
+
+credences = np.zeros((5, NUM_MORAL))
+# Set the diagonal elements
+for i in range(NUM_MORAL):
+    credences[i, i] = 1
+    
+api_key = os.environ.get("OPENAI_API_KEY", "none")
+model = create_llm_env(api_key)
+final_prompt = few_shot_prompt_training()
 
 def print_frames(env_id, frames, dt=0.1, indices=None):
     if "Driving" in env_id:
@@ -49,16 +61,25 @@ def run(config):
     steps = 0
     frames = []
     itr = 0
+
+    unwrapped_env = envs.envs[0].unwrapped
     while not done:
         # action = env.action_space.sample()
         action, logprob, _, value = agent.get_action_and_value(next_obs)
-        state, reward, terminated, truncated, info = envs.envs[0].step(action)
+        if config.debug_llm:
+            print(unwrapped_env.render())
+            state_text, action_text = unwrapped_env.state_as_text()
+            actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
+            scenario_prompt = unwrapped_env.get_scenario_prompt()
+            call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)
+
+        state, reward, terminated, truncated, info = envs.step(action)
         done = np.logical_or(terminated, truncated)
         itr=itr+1
-        neg_passed, pos_passed = envs.envs[0].log()
+        neg_passed, pos_passed = unwrapped_env.log()
         # Put each rendered frame into dict for animation
         frames.append({
-            'frame': envs.envs[0].render(),
+            'frame': unwrapped_env.render(),
             'state': state,
             'action': action,
             'reward': reward,
@@ -69,9 +90,8 @@ def run(config):
         next_obs, next_done = torch.Tensor(state).to(device), torch.Tensor(done).to(device)
         
         steps += 1
-    envs.envs[0].close()
-    print_frames(config.env_id,frames, dt=0.01)
-    
+    envs.close()
+    return frames
 
 if __name__ == '__main__':    
     parser = argparse.ArgumentParser()
@@ -81,6 +101,8 @@ if __name__ == '__main__':
     parser.add_argument("--seed", default=1, type=int)
     parser.add_argument("--model_path", default="runs/PreTrainedDriveModel/ppo.cleanrl_model", type=str) #PreTrainedDriveModel
     parser.add_argument("--capture_video", default=False, type=bool)
+    parser.add_argument("--debug_llm", action="store_true")
 
     config = parser.parse_args()
-    run(config)
+    frames = run(config)
+    print_frames(config.env_id, frames, dt=0.01, indices=[0, len(frames)-1])
