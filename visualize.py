@@ -74,7 +74,7 @@ def run(config):
             scenario_prompt = env.get_scenario_prompt()
             call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)
 
-        state, reward, terminated, truncated, info = env.step(action)
+        state, reward, terminated, truncated, info = env.step(action.cpu().numpy())
         done = np.logical_or(terminated, truncated)
         itr=itr+1
         neg_passed, pos_passed = env.log()
