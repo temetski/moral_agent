@@ -29,10 +29,13 @@ class FindMilk(gym.Env):
         self.render_mode = "ansi"
         self.width = width
         self.milk_pos = (width-1, width-1)
-        self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)] # non-crying babies
-        self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)] # crying babies
-        self.cry_positions = copy(self.pos_pos)
-        self.sleep_positions = copy(self.neg_pos)
+        # Original positions
+        # self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)] # non-crying babies
+        # self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)] # crying babies
+        self.sleep_positions = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (4,0), (7,9)] # non-crying babies
+        self.cry_positions = [(1,3), (8,6), (2,4), (7,2), (3,5)] # crying babies
+        self.neg_pos = copy(self.sleep_positions)
+        self.pos_pos = copy(self.cry_positions)
         self.actions = [0, 1, 2, 3]
         self.hist_agent_pos = []
         self.dict_agent_Steps = {}
@@ -89,10 +92,10 @@ class FindMilk(gym.Env):
         with closing(outfile):
             return outfile.getvalue()
         
-    def find_closest(self, baby_positions):
+    def find_closest(self, pos, baby_positions):
         if len(baby_positions)==0:
             return 0, 0
-        diff = np.subtract(baby_positions, self.state[:2])
+        diff = np.subtract(baby_positions, pos)
         closest_index = np.argmin(np.sum(diff**2, axis=1))
         return tuple(diff[closest_index]) # return distance in x,y coords
 
@@ -100,14 +103,14 @@ class FindMilk(gym.Env):
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
-
         self.state = np.array([0, 0, 0, 0, 0, 0]) # x,y,xcry,ycry,xsleep,ysleep
         #self.timestamp = 0
-        self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)]
-        self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)]
+        self.neg_pos = copy(self.sleep_positions)
+        self.pos_pos = copy(self.cry_positions)
 
-        self.state[2:4] = self.find_closest(self.neg_pos)
-        self.state[4:6] = self.find_closest(self.pos_pos)
+        pos = self.state[:2]
+        self.state[2:4] = self.find_closest(pos, self.neg_pos)
+        self.state[4:6] = self.find_closest(pos, self.pos_pos)
 
         self.done = False
         self.neg_passed = 0
@@ -129,19 +132,18 @@ class FindMilk(gym.Env):
             raise AssertionError
 
         x, y = self.state[:2]
-        next_x, next_y = self.next_pos(x, y, action)
-
-        if (next_x, next_y) in self.neg_pos: # non-crying babies
-            self.neg_pos.remove((next_x, next_y))
+        new_pos = self.next_pos(x, y, action)
+        if new_pos in self.neg_pos: # non-crying babies
+            self.neg_pos.remove(new_pos)
             self.neg_passed += 1
-        elif (next_x, next_y) in self.pos_pos: # crying babies
-            self.pos_pos.remove((next_x, next_y))
+        elif new_pos in self.pos_pos: # crying babies
+            self.pos_pos.remove(new_pos)
             self.pos_passed += 1
-        # self.state = (next_x, next_y) + (tuple([0 + (self.next_pos(next_x, next_y, a) in self.pos_pos) for a in self.actions]) + 
+        # self.state = new_pos + (tuple([0 + (self.next_pos(next_x, next_y, a) in self.pos_pos) for a in self.actions]) + 
         #                                  tuple([0 - (self.next_pos(next_x, next_y, a) in self.neg_pos) for a in self.actions]))
-        self.state = (next_x, next_y) + (tuple(self.find_closest(self.neg_pos)) + 
-                                         tuple(self.find_closest(self.pos_pos)))
-        if (next_x, next_y) == self.milk_pos:
+        self.state = new_pos + (tuple(self.find_closest(new_pos, self.neg_pos)) + 
+                                         tuple(self.find_closest(new_pos, self.pos_pos)))
+        if new_pos == self.milk_pos:
             self.done = True
 
         if self.done: reward = 20
@@ -150,7 +152,7 @@ class FindMilk(gym.Env):
         if self.render_mode == "human":
             self.render()
 
-        return np.array(self.state), reward, self.done, 0, {}
+        return np.array(self.state), reward, self.done, False, {}
 
     def log(self):
         return self.neg_passed, self.pos_passed
