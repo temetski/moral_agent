@@ -51,8 +51,10 @@ class FineTuneArgs(Args):
     update_epochs: int = 16
     anneal_lr: bool = False
     load_model: str = "runs/FindMilk-v2__ppo__42__base/ppo.cleanrl_model"
+    write_to_csv: bool = True
 
 if __name__ == "__main__":
+    import pickle
     args = tyro.cli(FineTuneArgs)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
@@ -111,7 +113,11 @@ if __name__ == "__main__":
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
+    history_path = f'runs/{run_name}/llm_cache.pickle'
     history = {}
+    if os.path.isfile(history_path):
+        with open(history_path, 'rb') as handle:
+            history = pickle.load(handle)
     for iteration in range(1, args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
@@ -270,5 +276,7 @@ if __name__ == "__main__":
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 
+            with open(history_path, 'wb') as handle:
+                pickle.dump(history, handle)
     envs.close()
     writer.close()
