@@ -142,7 +142,7 @@ if __name__ == "__main__":
             shaping_reward = []
             for i in range(args.num_envs):
                 unwrapped_env = envs.envs[i].unwrapped
-                envstate = gym.spaces.utils.flatten_space(unwrapped_env.state)
+                envstate = envs.get_attr('state')[i] # the unwrapped env might not have a flat observation space
                 if tuple(envstate) not in history:
                     state_text, action_text = unwrapped_env.state_as_text()
                     actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
