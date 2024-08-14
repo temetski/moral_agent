@@ -14,7 +14,7 @@ def create_llm_env(key):
     model = ChatOpenAI(
         model="llama3",
         temperature=0,
-        max_tokens=None,
+        max_tokens=4096,
         timeout=None,
         max_retries=2,
         api_key=key,  # if you prefer to pass api key in directly instaed of using env vars
@@ -233,12 +233,13 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
 
 
         credence_text = "Behave as an agent that assigns the following credence values: {{" + weighted_Credences + "}}. Reason through using the credence confidence for moral theories."
-        question_text = f"{scenario_prompt}{state}\n\n{action}\n\n{credence_text}"
+        question_text = f"{scenario_prompt} {state}\n\n{action}\n\n{credence_text}"
         question_text_all.append(question_text)
         # question_text_log.append(question_text)
         # print(question_text)
         formattedChatPrompt = final_prompt.format_messages(scenario=question_text)
         response = model.invoke(formattedChatPrompt)
+        assert response.response_metadata['finish_reason']=='stop'
         # response_text_log.append(response.content)
         # print(response.content)
         question_response_dict[question_text] = response.content
@@ -267,7 +268,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
             del beliefs[key] 
         assert len(actionsets) == len(beliefs) 
 
-        one_row = np.array(list(beliefs.values()), dtype=float)
+        one_row = np.array([beliefs[list(actionset)[0]] for actionset in actionsets], dtype=float)
         sum_of_belief = one_row.sum()
         if np.all(one_row==0):
             warnings.warn("Beliefs cannot be zero. Setting beliefs to be equal")
@@ -281,6 +282,12 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
     return belief_dict, question_response_dict
 
 if __name__=="__main__":
+    import gymnasium as gym
+    import os
+    import sys
+    from dempster_shafer import belief_to_reward
+    sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
+
     # debugging examples
     NUM_MORAL = 5
     credences = np.zeros((5, NUM_MORAL))
@@ -291,14 +298,28 @@ if __name__=="__main__":
     # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
     model = create_llm_env("no-key")
 
-    scenario_prompt = "You are tasked with finding milk as quickly as possible in a room filled with babies. Most babies are sleeping, however, there are some babies that are crying. Passing by the parts of the room with a sleeping baby will disturb the baby, but going near a crying baby will pacify them. Currently there are 9 crying babies in the room."
+#     scenario_prompt = "You are tasked with finding milk as quickly as possible in a room filled with babies. Most babies are sleeping, however, there are some babies that are crying. Passing by the parts of the room with a sleeping baby will disturb the baby, but going near a crying baby will pacify them. Currently there are 9 crying babies in the room."
     
-    state = "You are currently at position (9, 7) and the milk is at position (9,9). You can perform the following actions:"
+#     state = "You are currently at position (9, 7) and the milk is at position (9,9). You can perform the following actions:"
 
-    action = """Action A: Going up brings you closer to 0 crying and 0 sleeping babies
-Action B: Going down brings you closer to 5 crying and 0 sleeping babies.
-Action C: Going left brings you closer to 1 crying and 1 sleeping babies.
-Action D: Going right brings you closer to 0 crying and 2 sleeping babies."""
+#     action = """Action A: Going up brings you closer to 0 crying and 0 sleeping babies
+# Action B: Going down brings you closer to 5 crying and 0 sleeping babies.
+# Action C: Going left brings you closer to 1 crying and 1 sleeping babies.
+# Action D: Going right brings you closer to 0 crying and 2 sleeping babies."""
+
+    env = gym.make('environments.milk:FindMilk-v2').unwrapped
+    env.reset()
+    new_pos = (9,7)
+    env.state = new_pos + (tuple(env.find_closest(new_pos, env.pos_pos)) + 
+                                    tuple(env.find_closest(new_pos, env.neg_pos)))
+    actionsets = [frozenset([str(k)]) for k in env.action_mapper.keys()]
+
+    scenario_prompt = env.get_scenario_prompt()
+    state, action = env.state_as_text()
+
 
     final_prompt = few_shot_prompt_training()
-    beliefs, question_response_dict,step = call_llm_with_state_action(scenario_prompt,state,action,credences,model,final_prompt)
+    beliefs, question_response_dict = call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt)
+    print(beliefs)
+    reward_dict = belief_to_reward(beliefs, actionsets)
+    print(reward_dict)
