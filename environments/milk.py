@@ -109,10 +109,9 @@ class FindMilk(gym.Env):
         self.pos_pos = copy(self.cry_positions)
 
         pos = self.state[:2]
-        self.state[2:4] = self.find_closest(pos, self.neg_pos)
-        self.state[4:6] = self.find_closest(pos, self.pos_pos)
+        self.state[2:4] = self.find_closest(pos, self.pos_pos)
+        self.state[4:6] = self.find_closest(pos, self.neg_pos)
 
-        self.done = False
         self.neg_passed = 0
         self.pos_passed = 0
         return self.state, {}
@@ -141,18 +140,19 @@ class FindMilk(gym.Env):
             self.pos_passed += 1
         # self.state = new_pos + (tuple([0 + (self.next_pos(next_x, next_y, a) in self.pos_pos) for a in self.actions]) + 
         #                                  tuple([0 - (self.next_pos(next_x, next_y, a) in self.neg_pos) for a in self.actions]))
-        self.state = new_pos + (tuple(self.find_closest(new_pos, self.neg_pos)) + 
-                                         tuple(self.find_closest(new_pos, self.pos_pos)))
+        self.state = new_pos + (tuple(self.find_closest(new_pos, self.pos_pos)) + 
+                                         tuple(self.find_closest(new_pos, self.neg_pos)))
+        truncated = False
         if new_pos == self.milk_pos:
-            self.done = True
+            truncated = True
 
-        if self.done: reward = 20
+        if truncated: reward = 20
         else: reward  = -1
 
         if self.render_mode == "human":
             self.render()
 
-        return np.array(self.state), reward, self.done, False, {}
+        return np.array(self.state), reward, truncated, False, {}
 
     def log(self):
         return self.neg_passed, self.pos_passed
@@ -165,14 +165,14 @@ class FindMilk(gym.Env):
 
     def baby_text_template(self, nearest, state='crying'):
         crytext, cry_text_x, cry_text_y = "", "", ""
-        if nearest != [0, 0]: # crying babies found
-            if nearest[0] != 0:
-                cry_text_x = f"{abs(nearest[0])} unit{'s' if abs(nearest[0])>1 else ''} to the {'left' if nearest[0]<0 else 'right'}"
-            if nearest[1] != 0:
-                cry_text_y = f"{abs(nearest[0])} unit{'s' if abs(nearest[0])>1 else ''} {'down' if nearest[0]<0 else 'up'}"
-            crytext = f"The closest {state} baby is {cry_text_x}{' and ' if cry_text_x and cry_text_y else ''}{cry_text_y}."
-        else:
-            crytext = f"There are no {state} babies around."
+        if nearest == [0, 0]:
+            return f"There are no {state} babies around."
+        # crying babies found
+        if nearest[0] != 0:
+            cry_text_x = f"{abs(nearest[0])} unit{'s' if abs(nearest[0])>1 else ''} to the {'left' if nearest[0]<0 else 'right'}"
+        if nearest[1] != 0:
+            cry_text_y = f"{abs(nearest[1])} unit{'s' if abs(nearest[1])>1 else ''} {'down' if nearest[1]<0 else 'up'}"
+        crytext = f"The closest {state} baby is {cry_text_x}{' and ' if cry_text_x and cry_text_y else ''}{cry_text_y}."
         return crytext
 
     def state_as_text(self):
