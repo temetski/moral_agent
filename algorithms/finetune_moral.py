@@ -28,22 +28,15 @@ api_key = os.environ.get("OPENAI_API_KEY", "none")
 model = create_llm_env(api_key)
 final_prompt = few_shot_prompt_training()
 
-def log(logger,writer,question_response_dict,step,reward_dict,action):
+def log(logger,writer,question_response_dict,step,global_step,reward_dict,action,frame=None):   
     if args.write_to_csv==False:
         text = f"Step {step}\n"
         i = 0
         for key, value in question_response_dict.items():
             text += f"-------Question Prompt with credence index - {i}-------\n {key}\n -------Response Prompt-------\n{value}\n--------------------------------------\n"
             i+=1
-        # print(text)
             
-        writer.add_text("LLM Prompts",
-            text,
-            )
-        print(f"{reward_dict}\n {action}\n")
-        writer.add_text("Reward & Action",
-            f"Step {step}\n{reward_dict}\n {action}\n",
-            )
+        writer.add_text("LLM Prompts", f"\n{frame if frame is not None else ''}" + text, global_step)
     else:
         for key, value in question_response_dict.items():
             logger.log(step=step, question=key, response=value, reward=reward_dict, action=action)
@@ -56,8 +49,12 @@ class FineTuneArgs(Args):
     total_timesteps: int = 100*num_steps
     num_envs: int = 1
     update_epochs: int = 16
+    anneal_lr: bool = False
+    load_model: str = "runs/FindMilk-v2__ppo__42__base/ppo.cleanrl_model"
+    write_to_csv: bool = True
 
 if __name__ == "__main__":
+    import pickle
     args = tyro.cli(FineTuneArgs)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
@@ -97,9 +94,7 @@ if __name__ == "__main__":
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs).to(device)
-    # LOADPATH = "runs/FindMilk__ppo__42__base/ppo.cleanrl_model" #Remove hardcode folderpath
-    LOADPATH = "runs/Driving__ppo__1__1723551933/ppo.cleanrl_model"
-    agent.load_state_dict(torch.load(LOADPATH))
+    agent.load_state_dict(torch.load(args.load_model))
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
@@ -118,7 +113,11 @@ if __name__ == "__main__":
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
 
+    history_path = f'runs/{run_name}/llm_cache.pickle'
     history = {}
+    if os.path.isfile(history_path):
+        with open(history_path, 'rb') as handle:
+            history = pickle.load(handle)
     for iteration in range(1, args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
@@ -143,21 +142,21 @@ if __name__ == "__main__":
             shaping_reward = []
             for i in range(args.num_envs):
                 unwrapped_env = envs.envs[i].unwrapped
-                # if tuple(unwrapped_env.state) not in history:
-                state_text, action_text = unwrapped_env.state_as_text()
-                actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
-                scenario_prompt = unwrapped_env.get_scenario_prompt()
-                beliefs, question_response_dict = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)                
-                    # print(beliefs) # TODO: process as shaping rewards
-            
-                reward_dict = belief_to_reward(beliefs, actionsets)
-                history[tuple(unwrapped_env.state)] = reward_dict
-                # else:
-                #     print("Note: using cached LLM response")
-                #     reward_dict = history[tuple(unwrapped_env.state)]
+                envstate = envs.get_attr('state')[i] # the unwrapped env might not have a flat observation space
+                if tuple(envstate) not in history:
+                    state_text, action_text = unwrapped_env.state_as_text()
+                    actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
+                    scenario_prompt = unwrapped_env.get_scenario_prompt()
+                    beliefs, question_response_dict = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)                
+                    reward_dict = belief_to_reward(beliefs, actionsets)
+                    history[tuple(envstate)] = reward_dict
+                else:
+                    print("Note: using cached LLM response")
+                    reward_dict = history[tuple(envstate)]
                 shaping_reward.append(reward_dict[frozenset([str(the_actions[i])])])
                 if step%10==0: #log after every 10 steps - TODO: Make logging step as variable
-                    log(logger,writer,question_response_dict,step,reward_dict,action.cpu().numpy())
+                    log(logger,writer,question_response_dict,step,global_step,reward_dict,action.cpu().numpy(), frame=unwrapped_env.render())
+                writer.add_text("Reward & Action", f"Step {step}\n{reward_dict}\n {action}\n", global_step=global_step)
                 # Cache state-action prompts to save processing time
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
 
@@ -277,5 +276,7 @@ if __name__ == "__main__":
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 
+            with open(history_path, 'wb') as handle:
+                pickle.dump(history, handle)
     envs.close()
     writer.close()

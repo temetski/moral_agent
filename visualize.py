@@ -43,7 +43,7 @@ def print_frames(env_id, frames, dt=0.1, indices=None):
             if i in indices:
                 clear_output(wait=True)
                 print(frame['frame'])
-                print(f"Timestep: {i + 1}")
+                print(f"Timestep: {frame['timestep']}")
                 print(f"State: {frame['state']}")
                 print(f"Action: {frame['action']}")
                 print(f"Reward: {frame['reward']}")
@@ -92,7 +92,10 @@ def run(config):
 
         metric_1, metric_2 = env.log()
         # Put each rendered frame into dict for animation
+        steps += 1
+
         frames.append({
+            'timestep': steps,
             'frame': env.render(),
             'state': state,
             'action': action,
@@ -103,7 +106,6 @@ def run(config):
         )
         next_obs, next_done = torch.Tensor(state).to(device), torch.Tensor(done).to(device)
         
-        steps += 1
     env.close()
     return frames
 
@@ -113,12 +115,23 @@ if __name__ == '__main__':
     parser.add_argument("--env_id", default="environments.drive:Driving", type=str)  #"environments.drive:Driving"
     parser.add_argument("--num_envs", default=1, type=int)
     parser.add_argument("--seed", default=1, type=int)
-    # parser.add_argument("--model_path", default="runs/PreTrainedDriveModel/ppo.cleanrl_model", type=str) #Base model with both ishuman_p and n as False 
-    # parser.add_argument("--model_path", default="runs/Driving__ppo__1__moral/ppo_20.cleanrl_model", type=str) #MOral model with both ishuman_p and n as False 
-    parser.add_argument("--model_path", default="runs/Driving__ppo__1__1723536122/ppo.cleanrl_model", type=str) #Base model with ishuman_p=True
+    parser.add_argument("--model_path", default="runs/FindMilk-v2__ppo__42__base/ppo.cleanrl_model", type=str)
     parser.add_argument("--capture_video", default=False, type=bool)
     parser.add_argument("--debug_llm", action="store_true")
 
     config = parser.parse_args()
-    frames = run(config)
+
+    stats = []
+    for i in range(50):
+        frames = run(config)
+        stats.append(frames[-1])
+        config.seed += 1
     print_frames(config.env_id, frames, dt=0.01, indices=[0, len(frames)-1])
+
+    timesteps = [i['timestep'] for i in stats]
+    metric_1 = [i['metric_1'] for i in stats]
+    metric_2 = [i['metric_2'] for i in stats]
+    print(f'Timesteps: {np.mean(timesteps)} +- {np.std(timesteps)}')
+    print(f'Sleeping babies: {np.mean(metric_1)} +- {np.std(metric_1)}')
+    print(f'Crying babies: {np.mean(metric_2)} +- {np.std(metric_2)}')
+
