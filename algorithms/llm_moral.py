@@ -9,16 +9,21 @@ import regex
 import json
 from collections import OrderedDict
 import warnings
+import os
 
-def create_llm_env(key):  
+def create_llm_env(key,model_name='llama3'):  
+    if model_name=='llama3':
+        base_url = 'http://10.249.72.3:8000/v1'
+    else:
+        base_url =None
     model = ChatOpenAI(
-        model="llama3",
+        model=model_name,
         temperature=0,
         max_tokens=4096,
         timeout=None,
         max_retries=2,
         api_key=key,  # if you prefer to pass api key in directly instaed of using env vars
-        base_url='http://10.249.72.3:8000/v1',
+        base_url=base_url,
         # organization="...",
         # other params...
     )
@@ -239,16 +244,29 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         # print(question_text)
         formattedChatPrompt = final_prompt.format_messages(scenario=question_text)
         response = model.invoke(formattedChatPrompt)
-        assert response.response_metadata['finish_reason']=='stop'
+        token_usage = response.response_metadata['token_usage']['completion_tokens']
+
+        # response.usage.total_tokens()
         # response_text_log.append(response.content)
         # print(response.content)
         question_response_dict[question_text] = response.content
         dict_pattern = r'\{(?:[^{}]|(?R))*\}'
         pattern = regex.compile(dict_pattern)
 
-        
+        if response.response_metadata['finish_reason']!='stop':
+            print("LLM ran out of token. Missing response content. Possible infinite loop")
         # Search for the pattern in the text
-        match = pattern.findall(response.content)[0]
+        # Use findall to get all matches
+        matches = pattern.findall(response.content)
+        # Check if there are any matches
+        if matches:
+            # Access the first match if it exists
+            match = matches[0]
+        else:
+            # Handle the case where no matches are found
+            print("No matches found.")
+            match = '{"0": 0.0, "1": 0.0, "2": 0.0}'
+    
 
         beliefs = json.loads(match, object_pairs_hook=OrderedDict) # ensure dictionary does not reorder choices
         # print(beliefs)
@@ -279,7 +297,9 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         # assert sum_of_belief>0, f"ERROR: beliefs cannot be zero. \n{response.content}"
         belief_dict[i] = one_row
         i+=1
-    return belief_dict, question_response_dict
+    return belief_dict, question_response_dict,token_usage
+
+
 
 if __name__=="__main__":
     import gymnasium as gym
@@ -290,17 +310,20 @@ if __name__=="__main__":
 
     # debugging examples
     NUM_MORAL = 5
+    model_name = "llama3"
     credences = np.zeros((5, NUM_MORAL))
     # Set the diagonal elements
     for i in range(NUM_MORAL):
         credences[i, i] = 1
     # state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
     # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
-    model = create_llm_env("no-key")
+    api_key_coss = os.environ.get("OPENAI_API_KEY_COSS", "none")
+    model = create_llm_env(api_key_coss,model_name)
+    # model = create_llm_env("no-key")
 
-#     scenario_prompt = "You are tasked with finding milk as quickly as possible in a room filled with babies. Most babies are sleeping, however, there are some babies that are crying. Passing by the parts of the room with a sleeping baby will disturb the baby, but going near a crying baby will pacify them. Currently there are 9 crying babies in the room."
+    scenario_prompt = "You are a driving agent to simulate autonomous driving. Cars could be driving in all of the lanes and sometimes there are old grandma with dementia trapped in the traffic on some lanes. Your primary objective is to avoid collisions. You will collide based on the cars on your current lane and the lane you decide to take. Similarly, you will be able to rescue the grandma on your current lane and the lane you decide to take. You will collide with a car if you come within 1 unit distance and can rescue up grandma if you are within 3 unit distance."
     
-#     state = "You are currently at position (9, 7) and the milk is at position (9,9). You can perform the following actions:"
+    state = "You are currently on lane 0. The current lane has car at 7 unit distance and has no grandma. The lane on the right has car at 5 unit distance and has no grandma. The lane on the left does not exist and you cannot take it. You can perform the following actions:"
 
 #     action = """Action A: Going up brings you closer to 0 crying and 0 sleeping babies
 # Action B: Going down brings you closer to 5 crying and 0 sleeping babies.

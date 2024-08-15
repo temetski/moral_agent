@@ -24,8 +24,10 @@ credences = np.zeros((5, NUM_MORAL))
 for i in range(NUM_MORAL):
     credences[i, i] = 1
     
+model_name = "llama3"
 api_key = os.environ.get("OPENAI_API_KEY", "none")
-model = create_llm_env(api_key)
+api_key_coss = os.environ.get("OPENAI_API_KEY_COSS", "none")
+model = create_llm_env(api_key,model_name)
 final_prompt = few_shot_prompt_training()
 
 def log(logger,writer,question_response_dict,step,global_step,reward_dict,action,frame=None):   
@@ -50,7 +52,7 @@ class FineTuneArgs(Args):
     num_envs: int = 1
     update_epochs: int = 16
     anneal_lr: bool = False
-    load_model: str = "runs/FindMilk-v2__ppo__42__base/ppo.cleanrl_model"
+    load_model: str = "runs/Driving__ppo__1__1723551933/ppo.cleanrl_model"
     write_to_csv: bool = True
 
 if __name__ == "__main__":
@@ -112,8 +114,8 @@ if __name__ == "__main__":
     next_obs, _ = envs.reset(seed=args.seed)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
-
-    history_path = f'runs/{run_name}/llm_cache.pickle'
+    total_token_usage = 0
+    history_path = f'runs/{run_name}/{model_name}_llm_cache.pickle'
     history = {}
     if os.path.isfile(history_path):
         with open(history_path, 'rb') as handle:
@@ -142,24 +144,26 @@ if __name__ == "__main__":
             shaping_reward = []
             for i in range(args.num_envs):
                 unwrapped_env = envs.envs[i].unwrapped
-                envstate = envs.get_attr('state')[i] # the unwrapped env might not have a flat observation space
+                envstate = envs.observations[i] # the unwrapped env might not have a flat observation space
                 if tuple(envstate) not in history:
                     state_text, action_text = unwrapped_env.state_as_text()
                     actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
                     scenario_prompt = unwrapped_env.get_scenario_prompt()
-                    beliefs, question_response_dict = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt)                
+                    beliefs, question_response_dict,token_usage = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt) 
+                    total_token_usage+=token_usage            
                     reward_dict = belief_to_reward(beliefs, actionsets)
                     history[tuple(envstate)] = reward_dict
+                    if step%10==0: #log after every 10 steps - TODO: Make logging step as variable
+                        log(logger,writer,question_response_dict,step,global_step,reward_dict,action.cpu().numpy(), frame=unwrapped_env.render())
                 else:
                     print("Note: using cached LLM response")
                     reward_dict = history[tuple(envstate)]
                 shaping_reward.append(reward_dict[frozenset([str(the_actions[i])])])
-                if step%10==0: #log after every 10 steps - TODO: Make logging step as variable
-                    log(logger,writer,question_response_dict,step,global_step,reward_dict,action.cpu().numpy(), frame=unwrapped_env.render())
+                
                 writer.add_text("Reward & Action", f"Step {step}\n{reward_dict}\n {action}\n", global_step=global_step)
                 # Cache state-action prompts to save processing time
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
-
+            print(f"total token usage at step {global_step} = {total_token_usage}")
             # The shaping reward is 1-p_sensor, to strongly disincentivise taking the least moral action.
             shaping_reward = np.add(shaping_reward, -1)
             reward = np.add(reward, shaping_reward)
