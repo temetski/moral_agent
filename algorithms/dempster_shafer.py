@@ -19,7 +19,7 @@ def belief_to_reward(belief_dict, actionsets):
     
     #Step 1-1 Construct the distance measure matrix DMM = BJS(ij) as follows:
     # Initialize a 4x5 array with default values (e.g., zeros)
-    rows, num_clusters = 4, 5 #rows are number of actions. cols are number of model clusters (sensors)
+    rows, num_clusters = 4, len(belief_dict) #rows are number of actions. cols are number of model clusters (sensors)
     DMM = np.zeros((num_clusters, num_clusters))
 
     for i in range(num_clusters):

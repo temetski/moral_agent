@@ -15,11 +15,11 @@ def create_llm_env(key,model_name='llama3'):
     if model_name=='llama3':
         base_url = 'http://10.249.72.3:8000/v1'
     else:
-        base_url =None
+        base_url = None
     model = ChatOpenAI(
         model=model_name,
         temperature=0,
-        max_tokens=4096,
+        max_tokens=1024,
         timeout=None,
         max_retries=2,
         api_key=key,  # if you prefer to pass api key in directly instaed of using env vars
@@ -39,7 +39,7 @@ Action B: Call for emergency assistance.
 Action C: Place an obstacle.
 Action D: Do nothing.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 1.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}}. Reason through using the credence confidence for moral theories.""",
+Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 1.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}. Reason through using the credence confidence for moral theories.""",
         "answer":
     """Let us think about this step by step. 
 What is the immediate benefit of pulling the lever?
@@ -70,7 +70,7 @@ Action B: Call for emergency assistance.
 Action C: Place an obstacle.
 Action D: Do nothing.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 0.0, Deontological: 1.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}}. Reason through using the credence confidence for moral theories.""",
+Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 1.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}. Reason through using the credence confidence for moral theories.""",
         "answer":
     """Let us think about this step by step. 
 What is the deontological principle behind pulling the lever?
@@ -93,7 +93,7 @@ Action 1: Partially implement the health measures.
 Action 2: Invest in community health initiatives.
 Action 3: Do not implement the health measures.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 1.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}}. Reason through using the credence confidence for moral theories.""",
+Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 1.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}. Reason through using the credence confidence for moral theories.""",
         "answer":
     """Let us think about this step by step. 
 What virtues are relevant to the decision of implementing the environmental protection measure?
@@ -116,7 +116,7 @@ Action B: Distribute funds to smaller projects.
 Action C: Improve existing facilities.
 Action D: Maintain the current budget distribution.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 1.0}}. Reason through using the credence confidence for moral theories.""",
+Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 1.0}. Reason through using the credence confidence for moral theories.""",
         "answer":
     """Let us think about this step by step. 
 What are the positive outcomes of building the new park in the underserved neighborhood?
@@ -143,7 +143,7 @@ Action distribute: Distribute funds to smaller projects.
 Action improve: Improve existing facilities.
 Action maintain: Maintain the current budget distribution.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 1.0, Social Justice Ethics: 0.0}}. Reason through using the credence confidence for moral theories.""",
+Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 1.0, Social Justice Ethics: 0.0}. Reason through using the credence confidence for moral theories.""",
         "answer":
     """Let us think about this step by step. 
 What are the positive outcomes of building the new park in the underserved neighborhood?
@@ -168,8 +168,8 @@ Based these ethical credences, the probabilities of each action are: {"build": 0
     # This is a prompt template used to format each individual example.
     example_prompt = ChatPromptTemplate.from_messages(
         [
-            ("human", "{question}"),
-            ("ai", "{answer}"),
+            ("user", "{question}"),
+            ("assistant", "{answer}"),
         ]
     )
     few_shot_prompt = FewShotChatMessagePromptTemplate(
@@ -217,9 +217,9 @@ This moral cluster is further guided by the following ethical theories:
 - Capabilities Approach: This ethical theory adheres to the following key concepts: Human capabilities, Freedom to achieve well-being. When making decisions, this theory must take into account the following factors: Individual capabilities, Social opportunities, Personal choice.
 - Environmental Ethics: This ethical theory adheres to the following key concepts: Sustainability, Biocentrism, Intergenerational justice. When making decisions, this theory must take into account the following factors: Environmental impact, Future generations, Ecological balance.
 
-You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice as a dictionary of key:value pairs. Do not write reasoning or anything else after the lastline. The sum of all beliefs should be equal to 1."""),
+You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice as a json with the action as keys and probability as values. The sum of all beliefs should be equal to 1."""),
             few_shot_prompt,
-            ("human", "{scenario}"),
+            ("user", "{scenario}"),
         ])
     return final_prompt
 
@@ -228,7 +228,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
     question_response_dict = {}
     i=0
     votes = []
-    belief_dict = {i: 0 for i in range(5)}
+    belief_dict = {i: 0 for i in range(len(credences))}
     for c in credences:
         # c_list = c.split(" ")
         c_Consequentialist = credences[i][0];c_Deontological = credences[i][1];c_Virtue = credences[i][2];c_Care = credences[i][3];c_SocialJustice = credences[i][4]
@@ -237,7 +237,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         # print(weighted_Credences)
 
 
-        credence_text = "Behave as an agent that assigns the following credence values: {{" + weighted_Credences + "}}. Reason through using the credence confidence for moral theories."
+        credence_text = "Behave as an agent that assigns the following credence values: {" + weighted_Credences + "}. Reason through using the credence confidence for moral theories."
         question_text = f"{scenario_prompt} {state}\n\n{action}\n\n{credence_text}"
         question_text_all.append(question_text)
         # question_text_log.append(question_text)
@@ -319,30 +319,31 @@ if __name__=="__main__":
     # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
     api_key_coss = os.environ.get("OPENAI_API_KEY_COSS", "none")
     model = create_llm_env(api_key_coss,model_name)
-    # model = create_llm_env("no-key")
 
-    scenario_prompt = "You are a driving agent to simulate autonomous driving. Cars could be driving in all of the lanes and sometimes there are old grandma with dementia trapped in the traffic on some lanes. Your primary objective is to avoid collisions. You will collide based on the cars on your current lane and the lane you decide to take. Similarly, you will be able to rescue the grandma on your current lane and the lane you decide to take. You will collide with a car if you come within 1 unit distance and can rescue up grandma if you are within 3 unit distance."
+    # scenario_prompt = "You are a driving agent to simulate autonomous driving. Cars could be driving in all of the lanes and sometimes there are old grandma with dementia trapped in the traffic on some lanes. Your primary objective is to avoid collisions. You will collide based on the cars on your current lane and the lane you decide to take. Similarly, you will be able to rescue the grandma on your current lane and the lane you decide to take. You will collide with a car if you come within 1 unit distance and can rescue up grandma if you are within 3 unit distance."
     
-    state = "You are currently on lane 0. The current lane has car at 7 unit distance and has no grandma. The lane on the right has car at 5 unit distance and has no grandma. The lane on the left does not exist and you cannot take it. You can perform the following actions:"
+    # state = "You are currently on lane 0. The current lane has car at 7 unit distance and has no grandma. The lane on the right has car at 5 unit distance and has no grandma. The lane on the left does not exist and you cannot take it. You can perform the following actions:"
 
 #     action = """Action A: Going up brings you closer to 0 crying and 0 sleeping babies
 # Action B: Going down brings you closer to 5 crying and 0 sleeping babies.
 # Action C: Going left brings you closer to 1 crying and 1 sleeping babies.
 # Action D: Going right brings you closer to 0 crying and 2 sleeping babies."""
 
-    env = gym.make('environments.milk:FindMilk-v2').unwrapped
+    env = gym.make('environments.milk:FindMilk-v3', render_mode='ansi', validate=True)
     env.reset()
-    new_pos = (9,7)
-    env.state = new_pos + (tuple(env.find_closest(new_pos, env.pos_pos)) + 
-                                    tuple(env.find_closest(new_pos, env.neg_pos)))
+    new_pos = (6,9)
+    env.generate_state(new_pos)
     actionsets = [frozenset([str(k)]) for k in env.action_mapper.keys()]
 
     scenario_prompt = env.get_scenario_prompt()
     state, action = env.state_as_text()
 
-
+    credences = credences[[0,1],:]
     final_prompt = few_shot_prompt_training()
-    beliefs, question_response_dict = call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt)
-    print(beliefs)
+    beliefs, question_response_dict, _ = call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt)
+    print(env.render())
+    print(list(question_response_dict.keys())[0])
+    for q, r in question_response_dict.items():
+        print(r)
     reward_dict = belief_to_reward(beliefs, actionsets)
     print(reward_dict)
