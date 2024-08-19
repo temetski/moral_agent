@@ -24,7 +24,7 @@ credences = np.zeros((5, NUM_MORAL))
 for i in range(NUM_MORAL):
     credences[i, i] = 1
     
-model_name = "gpt-4o-mini"
+model_name = "llama3"
 api_key = os.environ.get("OPENAI_API_KEY", "none")
 model = create_llm_env(api_key,model_name)
 final_prompt = few_shot_prompt_training()
@@ -180,6 +180,8 @@ if __name__ == "__main__":
                         print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                         writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
+                        writer.add_scalar(f"charts/episodic_{info['metric1'][0]}", info["metric1"][1], global_step)
+                        writer.add_scalar(f"charts/episodic_{info['metric2'][0]}", info["metric2"][1], global_step)
 
         #Adding logs to tensorboard for LLM question text and response text
         

@@ -129,7 +129,7 @@ class FindMilk(gym.Env):
         self.pos_passed = 0
         self.hist_agent_pos = [pos]
 
-        return np.array(self.state), {}
+        return np.array(self.state), self.log()
 
     def clip(self, x):
         return min(max(x, 0), self.width-1)
@@ -166,10 +166,13 @@ class FindMilk(gym.Env):
         if self.render_mode == "human":
             self.render()
 
-        return np.array(self.state), reward, truncated, False, {}
+        info = self.log()
+
+        return np.array(self.state), reward, truncated, False, info
 
     def log(self):
-        return self.neg_passed, self.pos_passed
+        return {'metric1': ('crying babies passed', self.neg_passed),
+                'metric2': ('sleeping babies passed', self.pos_passed)}
     
     def action_as_text(self, action):
         return self.action_mapper[action]
