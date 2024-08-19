@@ -24,9 +24,8 @@ credences = np.zeros((5, NUM_MORAL))
 for i in range(NUM_MORAL):
     credences[i, i] = 1
     
-model_name = "llama3"
+model_name = "gpt-4o-mini"
 api_key = os.environ.get("OPENAI_API_KEY", "none")
-api_key_coss = os.environ.get("OPENAI_API_KEY_COSS", "none")
 model = create_llm_env(api_key,model_name)
 final_prompt = few_shot_prompt_training()
 
@@ -47,13 +46,16 @@ def log(logger,writer,question_response_dict,step,global_step,reward_dict,action
 ## OVERRIDES
 @dataclass
 class FineTuneArgs(Args):
-    num_steps: int = 128 # note it is 64 for Milk
+    num_steps: int = 64 # note it is 64 for Milk
     total_timesteps: int = 100*num_steps
     num_envs: int = 1
     update_epochs: int = 16
     anneal_lr: bool = False
     load_model: str = "runs/Driving__ppo__1__1723551933/ppo.cleanrl_model"
+    load_from: int = 0
     write_to_csv: bool = True
+
+kwargs = {'validate': True}
 
 if __name__ == "__main__":
     import pickle
@@ -91,7 +93,7 @@ if __name__ == "__main__":
 
     # env setup
     envs = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, i, args.capture_video, run_name) for i in range(args.num_envs)],
+        [make_env(args.env_id, i, args.capture_video, run_name, **kwargs) for i in range(args.num_envs)],
     )
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
@@ -276,7 +278,7 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            model_path = f"runs/{run_name}/{args.exp_name}_{iteration}.cleanrl_model"
+            model_path = f"runs/{run_name}/{model_name}_{args.exp_name}_{iteration+args.load_from}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 
