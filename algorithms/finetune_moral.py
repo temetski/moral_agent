@@ -47,7 +47,7 @@ def log(logger,writer,question_response_dict,step,global_step,reward_dict,action
 @dataclass
 class FineTuneArgs(Args):
     num_steps: int = 64 # note it is 64 for Milk
-    total_timesteps: int = 100*num_steps
+    total_timesteps: int = 200*num_steps
     num_envs: int = 1
     update_epochs: int = 16
     anneal_lr: bool = False
@@ -77,7 +77,7 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(f"runs/{run_name}")
+    writer = SummaryWriter(f"runs/{run_name}",filename_suffix=model_name)
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     if os.path.isfile(history_path):
         with open(history_path, 'rb') as handle:
             history = pickle.load(handle)
-    for iteration in range(1, args.num_iterations + 1):
+    for iteration in range(args.load_from+1, args.load_from + args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
@@ -280,7 +280,7 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            model_path = f"runs/{run_name}/{model_name}_{args.exp_name}_{iteration+args.load_from}.cleanrl_model"
+            model_path = f"runs/{run_name}/{model_name}_{args.exp_name}_{iteration}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 
