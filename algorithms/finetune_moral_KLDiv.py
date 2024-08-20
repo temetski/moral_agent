@@ -43,7 +43,12 @@ def log(logger,writer,question_response_dict,step,global_step,reward_dict,action
     else:
         for key, value in question_response_dict.items():
             logger.log(step=step, question=key, response=value, reward=reward_dict, action=action)
-   
+
+def kl_div(p1, p2):
+    total = 0.
+    for idx in range(len(p1)):
+        total += -p1[idx]*np.log(p2[idx]/p1[idx])
+    return total
     
 ## OVERRIDES
 @dataclass
@@ -55,8 +60,6 @@ class FineTuneArgs(Args):
     anneal_lr: bool = False
     load_model: str = "runs/Driving__ppo__1__1723727577/ppo_base.cleanrl_model"
     write_to_csv: bool = True
-
-kwargs = {'validate': True}
 
 if __name__ == "__main__":
     import pickle
@@ -78,7 +81,7 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(f"runs/{run_name}",filename_suffix=model_name)
+    writer = SummaryWriter(f"runs/{run_name}")
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
@@ -94,12 +97,17 @@ if __name__ == "__main__":
 
     # env setup
     envs = gym.vector.SyncVectorEnv(
-        [make_env(args.env_id, i, args.capture_video, run_name, **kwargs) for i in range(args.num_envs)],
+        [make_env(args.env_id, i, args.capture_video, run_name) for i in range(args.num_envs)],
     )
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs).to(device)
     agent.load_state_dict(torch.load(args.load_model))
+    agent.critic = agent.reset_critic(envs) # why? 
+    #This is the reference model (frozen) fo KL divergence
+    agent_ref = Agent(envs).to(device)
+    agent_ref.load_state_dict(torch.load(args.load_model)) 
+
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
@@ -107,6 +115,7 @@ if __name__ == "__main__":
     obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)
     actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
     logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    logprobs_ref = torch.zeros((args.num_steps, args.num_envs)).to(device)
     rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
@@ -123,7 +132,7 @@ if __name__ == "__main__":
     if os.path.isfile(history_path):
         with open(history_path, 'rb') as handle:
             history = pickle.load(handle)
-    for iteration in range(args.load_from+1, args.load_from + args.num_iterations + 1):
+    for iteration in range(0, args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
@@ -138,10 +147,16 @@ if __name__ == "__main__":
             # ALGO LOGIC: action logic
             with torch.no_grad():
                 action, logprob, _, value = agent.get_action_and_value(next_obs)
+                action_ref, logprob_ref, _, value_ref = agent_ref.get_action_and_value(next_obs)
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
-
+            logprobs_ref[step] = logprob_ref
+            
+            kl = kl_div(logprob_ref,logprob)
+            kl_penalty_factor = 2 # based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
+            non_score_reward = (-kl_penalty_factor * kl).numpy()
+            # print(non_score_reward)
             the_actions = action.cpu().numpy()
             # TRY NOT TO MODIFY: execute the game and log data.
             shaping_reward = []
@@ -168,9 +183,9 @@ if __name__ == "__main__":
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
             print(f"total token usage at step {global_step} = {total_token_usage}")
             # The shaping reward is 1-p_sensor, to strongly disincentivise taking the least moral action.
-            shaping_reward = np.add(shaping_reward, -1)
-            reward = np.add(reward, shaping_reward)
-
+            # shaping_reward = np.add(shaping_reward, -1)
+            # reward = np.add(reward, shaping_reward)
+            reward = shaping_reward + non_score_reward 
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
@@ -181,8 +196,6 @@ if __name__ == "__main__":
                         print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                         writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
-                        writer.add_scalar(f"charts/episodic_{info['metric1'][0]}", info["metric1"][1], global_step)
-                        writer.add_scalar(f"charts/episodic_{info['metric2'][0]}", info["metric2"][1], global_step)
 
         #Adding logs to tensorboard for LLM question text and response text
         
@@ -281,7 +294,7 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            model_path = f"runs/{run_name}/factor2/{model_name}_{args.exp_name}_{iteration}.cleanrl_model"
+            model_path = f"runs/{run_name}/kl_div/{args.exp_name}_{iteration}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 

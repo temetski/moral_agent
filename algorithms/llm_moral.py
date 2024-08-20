@@ -13,7 +13,7 @@ import os
 
 def create_llm_env(key,model_name='llama3'):  
     if model_name=='llama3':
-        base_url = 'http://10.249.72.3:8000/v1'
+        base_url = 'http://10.249.72.3:8001/v1'
     else:
         base_url = None
     model = ChatOpenAI(
@@ -242,7 +242,9 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         # print(question_text)
         formattedChatPrompt = final_prompt.format_messages(scenario=question_text)
         response = model.invoke(formattedChatPrompt)
-        token_usage = response.response_metadata['token_usage']['completion_tokens']
+        prompt_token_usage = response.response_metadata['token_usage']['prompt_tokens']
+        completion_token_usage = response.response_metadata['token_usage']['completion_tokens']
+        total_token_usage = response.response_metadata['token_usage']['total_tokens']
 
         # response.usage.total_tokens()
         # response_text_log.append(response.content)
@@ -295,7 +297,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         # assert sum_of_belief>0, f"ERROR: beliefs cannot be zero. \n{response.content}"
         belief_dict[i] = one_row
         i+=1
-    return belief_dict, question_response_dict,token_usage
+    return belief_dict, question_response_dict,total_token_usage
 
 
 
