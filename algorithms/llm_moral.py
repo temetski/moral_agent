@@ -15,11 +15,11 @@ def create_llm_env(key,model_name='llama3'):
     if model_name=='llama3':
         base_url = 'http://10.249.72.3:8000/v1'
     else:
-        base_url =None
+        base_url = None
     model = ChatOpenAI(
         model=model_name,
         temperature=0,
-        max_tokens=4096,
+        max_tokens=1024,
         timeout=None,
         max_retries=2,
         api_key=key,  # if you prefer to pass api key in directly instaed of using env vars
@@ -31,6 +31,37 @@ def create_llm_env(key,model_name='llama3'):
     
 def few_shot_prompt_training():    
     example_all_moral_clusters = [
+#         {
+#         "question": """You are a train conductor facing a critical decision. There is a runaway trolley headed towards five workers on the main track. You can pull a lever to divert the trolley onto a side track, but there is one worker on that track. Additionally, you have the option to call for emergency assistance, though it might not arrive in time. Lastly, you could attempt to stop the trolley by placing an obstacle, but it could lead to unpredictable consequences. Should you pull the lever, call for help, place an obstacle, or do nothing and let the trolley continue on its path?
+
+# A: Pull the lever.
+# B: Call for emergency assistance.
+# C: Place an obstacle.
+# D: Do nothing.
+
+# Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 1.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}. Using the credence confidence for moral theories, reason through what action you will take.""",
+#         "answer":
+#     """Let us think about this step by step. 
+# What is the immediate benefit of pulling the lever?
+# The immediate benefit is that four lives will be saved by sacrificing one. 
+# What is the potential long-term consequence of this action?
+# The potential long-term consequence includes the moral burden of directly causing one person's death. 
+# What is the immediate benefit of calling for emergency assistance?
+# The immediate benefit is the possibility of saving all six people without any loss of life. 
+# What is the potential long-term consequence of this action?
+# The potential long-term consequence includes the risk that the emergency assistance might not arrive in time, resulting in the loss of five lives. 
+# What is the immediate benefit of placing an obstacle?
+# The immediate benefit is that the trolley might be stopped without directly choosing to sacrifice any specific individual. 
+# What is the potential long-term consequence of this action?
+# The potential long-term consequence includes unpredictable outcomes, which could lead to even greater harm or no effect at all. 
+# What is the immediate benefit of doing nothing?
+# The immediate benefit is that the conductor does not directly intervene in the situation. 
+# What is the potential long-term consequence of this action?
+# The potential long-term consequence includes the certainty of five deaths and the moral burden of inaction.
+# How does consequentialism weigh immediate benefits against long-term consequences?
+# Consequentialism requires evaluating both immediate and long-term outcomes to determine which action maximizes overall well-being.
+# Based these ethical credences, the probabilities of each action are: {"A": 0.4, "B": 0.3, "C": 0.2, "D": 0.1 }"""
+#         },
         {
         "question": """You are a train conductor facing a critical decision. There is a runaway trolley headed towards five workers on the main track. You can pull a lever to divert the trolley onto a side track, but there is one worker on that track. Additionally, you have the option to call for emergency assistance, though it might not arrive in time. Lastly, you could attempt to stop the trolley by placing an obstacle, but it could lead to unpredictable consequences. Should you pull the lever, call for help, place an obstacle, or do nothing and let the trolley continue on its path?
 
@@ -39,75 +70,48 @@ Action B: Call for emergency assistance.
 Action C: Place an obstacle.
 Action D: Do nothing.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 1.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}}. Reason through using the credence confidence for moral theories.""",
+Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 1.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}. Using the credence confidence for moral theories, reason through what action you will take.""",
         "answer":
-    """Let us think about this step by step. 
-What is the immediate benefit of pulling the lever?
-The immediate benefit is that four lives will be saved by sacrificing one. 
-What is the potential long-term consequence of this action?
-The potential long-term consequence includes the moral burden of directly causing one person's death. 
-What is the immediate benefit of calling for emergency assistance?
-The immediate benefit is the possibility of saving all six people without any loss of life. 
-What is the potential long-term consequence of this action?
-The potential long-term consequence includes the risk that the emergency assistance might not arrive in time, resulting in the loss of five lives. 
-What is the immediate benefit of placing an obstacle?
-The immediate benefit is that the trolley might be stopped without directly choosing to sacrifice any specific individual. 
-What is the potential long-term consequence of this action?
-The potential long-term consequence includes unpredictable outcomes, which could lead to even greater harm or no effect at all. 
-What is the immediate benefit of doing nothing?
-The immediate benefit is that the conductor does not directly intervene in the situation. 
-What is the potential long-term consequence of this action?
-The potential long-term consequence includes the certainty of five deaths and the moral burden of inaction.
-How does consequentialism weigh immediate benefits against long-term consequences?
-Consequentialism requires evaluating both immediate and long-term outcomes to determine which action maximizes overall well-being.
-Based these ethical credences, the probabilities of each action are: {"A": 0.4, "B": 0.3, "C": 0.2, "D": 0.1 }"""
+    """Let us think about this step by step.
+
+Based on the assigned credence values, Deontological ethics is the most important moral cluster for my considerations. Deontological ethics emphasizes the importance of adhering to moral rules and duties. Since it prioritizes adherence to moral duties and rules over the consequences of actions, we should focus on the inherent rightness or wrongness of the actions themselves. Let us assess all of the actions based on this lens:
+
+
+Pull the lever: Pulling the lever would directly violate the duty to not intentionally harm an innocent person.
+Call for emergency assistance: Calling for emergency assistance aligns with the duty to seek help and preserve life without directly causing harm to others. However, given the urgency of the situation, this might result in inaction, and potentially fail at saving the workers.
+Place an obstacle: Placing an obstacle involves taking an action that could have unpredictable outcomes, which might violate the duty to avoid causing unintended harm.
+Do nothing: Doing nothing may align with the principle of non-interference, respecting the natural course of events without directly causing harm.
+
+Following deontological ethics, the most consistent course of action would be to not actively causing harm to anyone. This would adhere to my duty to avoid taking a direct action that leads to someone's death, even though this results in allowing harm to happen due to external forces beyond my control.
+
+Based these ethical credences, the probabilities of each action are: {"A": 0.05, "B": 0.3, "C": 0.05, "D": 0.6 }"""
         },
-        {
-        "question": """You are a train conductor facing a critical decision. There is a runaway trolley headed towards five workers on the main track. You can pull a lever to divert the trolley onto a side track, but there is one worker on that track. Additionally, you have the option to call for emergency assistance, though it might not arrive in time. Lastly, you could attempt to stop the trolley by placing an obstacle, but it could lead to unpredictable consequences. Should you pull the lever, call for help, place an obstacle, or do nothing and let the trolley continue on its path?
+#         {
+#         "question": """A company is deciding whether to implement a costly environmental protection measure. This measure will significantly reduce pollution and improve public health but will also lead to increased product prices and potential job losses. Additionally, the company could partially implement the measure to balance costs and benefits, or invest in community health initiatives as an alternative solution. Should the company fully implement the measure, partially implement it, invest in community health, or not implement the measure at all?
 
-Action A: Pull the lever.
-Action B: Call for emergency assistance.
-Action C: Place an obstacle.
-Action D: Do nothing.
+# 0: Fully implement the health measures.
+# 1: Partially implement the health measures.
+# 2: Invest in community health initiatives.
+# 3: Do not implement the health measures.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 0.0, Deontological: 1.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}}. Reason through using the credence confidence for moral theories.""",
-        "answer":
-    """Let us think about this step by step. 
-What is the deontological principle behind pulling the lever?
-Deontological ethics emphasizes the importance of adhering to moral rules and duties. Pulling the lever would directly violate the duty to not intentionally harm an innocent person. 
-What is the deontological principle behind calling for emergency assistance?
-Calling for emergency assistance aligns with the duty to seek help and preserve life without directly causing harm to others. 
-What is the deontological principle behind placing an obstacle?
-Placing an obstacle involves taking an action that could have unpredictable outcomes, which might violate the duty to avoid causing unintended harm. 
-What is the deontological principle behind doing nothing?
-Doing nothing may align with the principle of non-interference, respecting the natural course of events without directly causing harm.
-How does deontological ethics weigh the importance of adhering to moral duties against the outcomes of actions?
-Deontological ethics prioritizes adherence to moral duties and rules over the consequences of actions, focusing on the inherent rightness or wrongness of the actions themselves.
-Based these ethical credences, the probabilities of each action are: {"A": 0.1, "B": 0.5, "C": 0.2, "D": 0.2 }"""
-        },
-        {
-        "question": """A company is deciding whether to implement a costly environmental protection measure. This measure will significantly reduce pollution and improve public health but will also lead to increased product prices and potential job losses. Additionally, the company could partially implement the measure to balance costs and benefits, or invest in community health initiatives as an alternative solution. Should the company fully implement the measure, partially implement it, invest in community health, or not implement the measure at all?
+# Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 1.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}. Using the credence confidence for moral theories, reason through what action you will take.""",
+#         "answer":
+#     """Let us think about this step by step.
 
-Action 0: Fully implement the health measures.
-Action 1: Partially implement the health measures.
-Action 2: Invest in community health initiatives.
-Action 3: Do not implement the health measures.
+# Based on the credence values given, my priorities are in line with virtue ethics. In deciding to implement environmental protection measures, the virtues of responsibility, compassion, and justice are relevant
+#     What virtues are relevant to the decision of implementing the environmental protection measure?
+# Relevant virtues include responsibility, compassion, and justice.
+# How does the virtue of responsibility apply to this decision?
+# The virtue of responsibility involves acknowledging the company's duty to protect the environment and public health, acting as a steward for future generations.
+# How does the virtue of compassion apply to this decision?
+# The virtue of compassion emphasizes the importance of caring for the well-being of the community and employees, ensuring that actions taken do not cause unnecessary harm.
+# How does the virtue of justice apply to this decision?
+# The virtue of justice involves fairness in considering the impacts on all stakeholders, balancing the needs of the community, employees, and consumers.
+# How does virtue ethics evaluate the character and motivations of the decision-makers?
+# Virtue ethics evaluates the decision based on the moral character and intentions of the decision-makers, aiming for actions that reflect virtuous traits and contribute to a flourishing society.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 1.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}}. Reason through using the credence confidence for moral theories.""",
-        "answer":
-    """Let us think about this step by step. 
-What virtues are relevant to the decision of implementing the environmental protection measure?
-Relevant virtues include responsibility, compassion, and justice.
-How does the virtue of responsibility apply to this decision?
-The virtue of responsibility involves acknowledging the company's duty to protect the environment and public health, acting as a steward for future generations.
-How does the virtue of compassion apply to this decision?
-The virtue of compassion emphasizes the importance of caring for the well-being of the community and employees, ensuring that actions taken do not cause unnecessary harm.
-How does the virtue of justice apply to this decision?
-The virtue of justice involves fairness in considering the impacts on all stakeholders, balancing the needs of the community, employees, and consumers.
-How does virtue ethics evaluate the character and motivations of the decision-makers?
-Virtue ethics evaluates the decision based on the moral character and intentions of the decision-makers, aiming for actions that reflect virtuous traits and contribute to a flourishing society.
-Based these ethical credences, the probabilities of each action are: {"0": 0.4, "1": 0.3, "2": 0.2, "3": 0.1 }"""
-        },
+# Based these ethical credences, the probabilities of each action are: {"0": 0.4, "1": 0.3, "2": 0.2, "3": 0.1 }"""
+#         },
         {
         "question": """A city is deciding whether to allocate a significant portion of its budget to building a new public park in an underserved neighborhood. This park will provide recreational opportunities and improve the quality of life for residents but will also mean reducing funds for other services such as public transportation, healthcare, and education. Additionally, the city could opt to build smaller parks in multiple neighborhoods or invest in improving existing facilities. Should the city allocate the budget to build the new park, distribute the funds to smaller projects, improve existing facilities, or maintain the current budget distribution?
 
@@ -116,24 +120,20 @@ Action B: Distribute funds to smaller projects.
 Action C: Improve existing facilities.
 Action D: Maintain the current budget distribution.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 1.0}}. Reason through using the credence confidence for moral theories.""",
+Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 1.0}. Using the credence confidence for moral theories, reason through what action you will take.""",
         "answer":
-    """Let us think about this step by step. 
-What are the positive outcomes of building the new park in the underserved neighborhood?
-The positive outcomes include providing recreational opportunities and improving the quality of life for residents in an underserved area, promoting equity and inclusion. 
-What are the negative outcomes of allocating the budget to the new park?
-The negative outcomes include reducing funds for other critical services such as public transportation, healthcare, and education, which may disproportionately affect other vulnerable populations.
-How does social justice evaluate the distribution of resources?
-Social justice evaluates the distribution of resources by ensuring that benefits and burdens are shared fairly, prioritizing the needs of the most disadvantaged and promoting equity. 
-What are the potential benefits of distributing funds to smaller projects in multiple neighborhoods?
-Distributing funds to smaller projects can provide widespread benefits, improving multiple areas and promoting a sense of fairness and inclusion across the city. 
-What are the potential drawbacks of this approach?
-The potential drawbacks include a diluted impact, where smaller projects may not significantly improve any single area as much as a large, focused investment would.
-How does improving existing facilities compare to building new ones in terms of social justice?
-Improving existing facilities can address immediate needs and enhance the quality of life for current users, promoting efficient use of resources and incremental improvements. 
-What are the potential benefits and drawbacks of maintaining the current budget distribution?
-Maintaining the current budget distribution avoids disruption and ensures continued support for existing services, but it may also perpetuate existing inequalities and fail to address the needs of underserved areas.
-Based these ethical credences, the probabilities of each action are: {"A": 0.3, "B": 0.4, "C": 0.2, "D": 0.1 }"""
+    """Let us think about this step by step.
+
+Based on the assigned credence values, Social Justice is the most important moral cluster for my considerations. Social justice evaluates the distribution of resources by ensuring that benefits and burdens are shared fairly, prioritizing the needs of the most disadvantaged and promoting equity. Let us evaluate all of the actions based on this lens:
+
+Build the new park: Building a new park in the underserved neighborhood can provide recreational opportunities and improve the quality of life for residents in the underserved area, which promotes equity and inclusion. However, this can also reduce funds for other critical services such as public transportation, healthcare, and education, which may disproportionately affect other vulnerable populations.
+Distribute funds to smaller projects: Doing so can provide widespread benefits, improving multiple areas and promoting a sense of fairness and inclusion across the city. Its potential drawbacks include a diluted impact, where smaller projects may not significantly improve any single area as much as a large, focused investment would.
+Improving existing facilities: By improving existing facilities, we can address immediate needs and enhance the quality of life for current users, promoting efficient use of resources and incremental improvements. 
+Maintain the current budget distribution: While this avoids disruption and ensures continued support for existing services, it may also perpetuate existing inequalities and fail to address the needs of underserved areas.
+
+Given the full weight of Social Justice Ethics, the city should prioritize rectifying historical inequities. Building the new park (Action A) would be the most direct action to address the specific needs of the underserved neighborhood, fostering greater equality and community well-being.
+
+Based these ethical credences, the probabilities of each action are: {"A": 0.6, "B": 0.3, "C": 0.1, "D": 0.0 }"""
         },
         {
         "question": """A city is deciding whether to allocate a significant portion of its budget to building a new public park in an underserved neighborhood. This park will provide recreational opportunities and improve the quality of life for residents but will also mean reducing funds for other services such as public transportation, healthcare, and education. Additionally, the city could opt to build smaller parks in multiple neighborhoods or invest in improving existing facilities. Should the city allocate the budget to build the new park, distribute the funds to smaller projects, improve existing facilities, or maintain the current budget distribution?
@@ -143,24 +143,22 @@ Action distribute: Distribute funds to smaller projects.
 Action improve: Improve existing facilities.
 Action maintain: Maintain the current budget distribution.
 
-Behave as an agent that assigns the following credence values: {{Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 1.0, Social Justice Ethics: 0.0}}. Reason through using the credence confidence for moral theories.""",
+Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 0.0, Virtue Ethics: 0.0, Care Ethics: 1.0, Social Justice Ethics: 0.0}. Using the credence confidence for moral theories, reason through what action you will take.""",
         "answer":
-    """Let us think about this step by step. 
-What are the positive outcomes of building the new park in the underserved neighborhood?
-The positive outcomes include providing recreational opportunities and improving the quality of life for residents in an underserved area, fostering a sense of community and care. 
-What are the negative outcomes of allocating the budget to the new park?
-The negative outcomes include reducing funds for other critical services such as public transportation, healthcare, and education, which may negatively affect the well-being of other community members.
-How does care ethics evaluate the distribution of resources?
-Care ethics evaluates the distribution of resources by emphasizing relationships, interconnectedness, and the well-being of all community members, prioritizing actions that nurture and sustain care. 
-What are the potential benefits of distributing funds to smaller projects in multiple neighborhoods?
-Distributing funds to smaller projects can spread benefits more widely, showing care for multiple communities and fostering broader well-being. 
-What are the potential drawbacks of this approach?
-The potential drawbacks include the possibility that smaller projects may not significantly impact any single area, potentially leading to less effective outcomes in terms of care and community building.
-How does improving existing facilities compare to building new ones in terms of care ethics?
-Improving existing facilities can address the needs of current users, demonstrating ongoing care and commitment to maintaining and enhancing community resources. 
-What are the potential benefits and drawbacks of maintaining the current budget distribution?
-Maintaining the current budget distribution ensures continuity of existing services, but it may overlook opportunities to address unmet needs and enhance care in underserved areas.
-Based these ethical credences, the probabilities of each action are: {"build": 0.4, "distribute": 0.3, "improve": 0.2, "maintain": 0.1}"""
+    """Let us think about this step by step.
+
+Based on the assigned credence values, Care Ethics is the most important moral cluster for my considerations. Care ethics evaluates the distribution of resources by emphasizing relationships, interconnectedness, and the well-being of all community members, prioritizing actions that nurture and sustain care. Let us evaluate all of the actions based on this lens:
+
+build: Building the new park in the underserved neighborhood can provide recreational opportunities and improving the quality of life for residents in an underserved area, fostering a sense of community and care. This could come at the cost of reducing funds for other critical services such as public transportation, healthcare, and education, which may negatively affect the well-being of other community members.
+distribute: Distributing funds to smaller projects can spread benefits more widely, showing care for multiple communities and fostering broader well-being. 
+On this other hand, this approach includes the possibility that smaller projects may not significantly impact any single area, potentially leading to less effective outcomes in terms of care and community building.
+improve: Improving existing facilities can address the needs of current users, demonstrating ongoing care and commitment to maintaining and enhancing community resources. 
+
+maintain: Maintaining the current budget distribution ensures continuity of existing services, but it may overlook opportunities to address unmet needs and enhance care in underserved areas.
+
+Under Care Ethics, the focus is on providing care to those who need it most, ensuring that no group is neglected, and fostering relationships across communities. Therefore, the best course of action would likely be Action B: Distribute funds to smaller projects. This approach spreads the benefits across multiple neighborhoods, ensuring that the city shows care for multiple groups of people without severely reducing critical services such as transportation, healthcare, and education. Additionally, this strategy is more likely to foster positive relationships across different communities by showing that the city is attentive to the needs of all its residents, not just one underserved neighborhood.
+
+Based these ethical credences, the probabilities of each action are: {"build": 0.1, "distribute": 0.6, "improve": 0.3, "maintain": 0.0}"""
         }
     ]
 
@@ -168,8 +166,8 @@ Based these ethical credences, the probabilities of each action are: {"build": 0
     # This is a prompt template used to format each individual example.
     example_prompt = ChatPromptTemplate.from_messages(
         [
-            ("human", "{question}"),
-            ("ai", "{answer}"),
+            ("user", "{question}"),
+            ("assistant", "{answer}"),
         ]
     )
     few_shot_prompt = FewShotChatMessagePromptTemplate(
@@ -217,9 +215,9 @@ This moral cluster is further guided by the following ethical theories:
 - Capabilities Approach: This ethical theory adheres to the following key concepts: Human capabilities, Freedom to achieve well-being. When making decisions, this theory must take into account the following factors: Individual capabilities, Social opportunities, Personal choice.
 - Environmental Ethics: This ethical theory adheres to the following key concepts: Sustainability, Biocentrism, Intergenerational justice. When making decisions, this theory must take into account the following factors: Environmental impact, Future generations, Ecological balance.
 
-You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice as a dictionary of key:value pairs. Do not write reasoning or anything else after the lastline. The sum of all beliefs should be equal to 1."""),
+You will make your decisions on complex scenarios following the above moral codes. You should explain your reasoning on how you choose your actions. At the end and last line of you answer, state the action and probability of belief for that choice as a json with the action as keys and probability as values. The sum of all beliefs should be equal to 1."""),
             few_shot_prompt,
-            ("human", "{scenario}"),
+            ("user", "{scenario}"),
         ])
     return final_prompt
 
@@ -228,7 +226,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
     question_response_dict = {}
     i=0
     votes = []
-    belief_dict = {i: 0 for i in range(5)}
+    belief_dict = {i: 0 for i in range(len(credences))}
     for c in credences:
         # c_list = c.split(" ")
         c_Consequentialist = credences[i][0];c_Deontological = credences[i][1];c_Virtue = credences[i][2];c_Care = credences[i][3];c_SocialJustice = credences[i][4]
@@ -237,7 +235,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         # print(weighted_Credences)
 
 
-        credence_text = "Behave as an agent that assigns the following credence values: {{" + weighted_Credences + "}}. Reason through using the credence confidence for moral theories."
+        credence_text = "Behave as an agent that assigns the following credence values: {" + weighted_Credences + "}. Using the credence confidence for moral theories, reason through what action you will take."
         question_text = f"{scenario_prompt} {state}\n\n{action}\n\n{credence_text}"
         question_text_all.append(question_text)
         # question_text_log.append(question_text)
@@ -311,38 +309,42 @@ if __name__=="__main__":
     # debugging examples
     NUM_MORAL = 5
     model_name = "llama3"
+    # model_name = "gpt-4o-mini"
     credences = np.zeros((5, NUM_MORAL))
     # Set the diagonal elements
     for i in range(NUM_MORAL):
         credences[i, i] = 1
     # state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
     # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
-    api_key_coss = os.environ.get("OPENAI_API_KEY_COSS", "none")
+    api_key_coss = os.environ.get("OPENAI_API_KEY", "none")
     model = create_llm_env(api_key_coss,model_name)
-    # model = create_llm_env("no-key")
 
-    scenario_prompt = "You are a driving agent to simulate autonomous driving. Cars could be driving in all of the lanes and sometimes there are old grandma with dementia trapped in the traffic on some lanes. Your primary objective is to avoid collisions. You will collide based on the cars on your current lane and the lane you decide to take. Similarly, you will be able to rescue the grandma on your current lane and the lane you decide to take. You will collide with a car if you come within 1 unit distance and can rescue up grandma if you are within 3 unit distance."
+    # scenario_prompt = "You are a driving agent to simulate autonomous driving. Cars could be driving in all of the lanes and sometimes there are old grandma with dementia trapped in the traffic on some lanes. Your primary objective is to avoid collisions. You will collide based on the cars on your current lane and the lane you decide to take. Similarly, you will be able to rescue the grandma on your current lane and the lane you decide to take. You will collide with a car if you come within 1 unit distance and can rescue up grandma if you are within 3 unit distance."
     
-    state = "You are currently on lane 0. The current lane has car at 7 unit distance and has no grandma. The lane on the right has car at 5 unit distance and has no grandma. The lane on the left does not exist and you cannot take it. You can perform the following actions:"
+    # state = "You are currently on lane 0. The current lane has car at 7 unit distance and has no grandma. The lane on the right has car at 5 unit distance and has no grandma. The lane on the left does not exist and you cannot take it. You can perform the following actions:"
 
 #     action = """Action A: Going up brings you closer to 0 crying and 0 sleeping babies
 # Action B: Going down brings you closer to 5 crying and 0 sleeping babies.
 # Action C: Going left brings you closer to 1 crying and 1 sleeping babies.
 # Action D: Going right brings you closer to 0 crying and 2 sleeping babies."""
 
-    env = gym.make('environments.milk:FindMilk-v2').unwrapped
+    env = gym.make('environments.milk:FindMilk-v3', render_mode='ansi', validate=True)
     env.reset()
-    new_pos = (9,7)
-    env.state = new_pos + (tuple(env.find_closest(new_pos, env.pos_pos)) + 
-                                    tuple(env.find_closest(new_pos, env.neg_pos)))
+    new_pos = (6,9)
+    # new_pos = (4,2)
+    # env.unwrapped.milk_pos = (4,6)
+    env.generate_state(new_pos)
     actionsets = [frozenset([str(k)]) for k in env.action_mapper.keys()]
 
     scenario_prompt = env.get_scenario_prompt()
     state, action = env.state_as_text()
 
-
+    credences = credences[[0,1],:]
     final_prompt = few_shot_prompt_training()
-    beliefs, question_response_dict = call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt)
-    print(beliefs)
+    beliefs, question_response_dict, _ = call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt)
+    print(env.render())
+    print(list(question_response_dict.keys())[0])
+    for q, r in question_response_dict.items():
+        print(r)
     reward_dict = belief_to_reward(beliefs, actionsets)
     print(reward_dict)

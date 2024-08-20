@@ -52,14 +52,8 @@ def print_frames(env_id, frames, dt=0.1, indices=None):
                 sleep(dt)
             
 def run(config):    
-    # args = tyro.cli(Args)
     run_name = f"{config.env_id.replace(':','.')}__{config.exp_name}__{config.seed}__moral"
-    # env = gym.make('environments.milk:FindMilk', render_mode='ansi', max_episode_steps=1500)
-    # env = gym.make('environments.drive:Driving', render_mode='ansi', max_episode_steps=1500)
-    # envs = gym.vector.SyncVectorEnv(
-    #     [make_env(config.env_id, i, config.capture_video, run_name) for i in range(config.num_envs)],
-    # )
-    env = gym.make(config.env_id, render_mode='ansi')
+    env = gym.make(config.env_id, render_mode='ansi', validate=True)
     # Mimic SyncVectorEnv for cleanrl's PPO
     env.single_action_space = env.action_space
     env.single_observation_space = env.observation_space
@@ -90,7 +84,7 @@ def run(config):
         done = np.logical_or(terminated, truncated)
         itr=itr+1
 
-        metric_1, metric_2 = env.log()
+        metrics = env.log()
         # Put each rendered frame into dict for animation
         steps += 1
 
@@ -100,8 +94,8 @@ def run(config):
             'state': state,
             'action': action,
             'reward': reward,
-            'metric_1' : metric_1,
-            'metric_2' : metric_2
+            'metric_1' : metrics['metric1'][1],
+            'metric_2' : metrics['metric2'][1]
             }
         )
         next_obs, next_done = torch.Tensor(state).to(device), torch.Tensor(done).to(device)
@@ -134,4 +128,7 @@ if __name__ == '__main__':
     print(f'Timesteps: {np.mean(timesteps)} +- {np.std(timesteps)}')
     print(f'Sleeping babies: {np.mean(metric_1)} +- {np.std(metric_1)}')
     print(f'Crying babies: {np.mean(metric_2)} +- {np.std(metric_2)}')
+
+    longest_idx = np.argmax(timesteps)
+    print(stats[longest_idx]['frame'])
 

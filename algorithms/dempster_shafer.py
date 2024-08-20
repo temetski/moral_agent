@@ -1,7 +1,8 @@
 import math
 import numpy as np
 import pandas as pd
-    
+from scipy.stats import entropy
+from scipy.special import xlogy
 from itertools import combinations
 from collections import defaultdict
 
@@ -10,16 +11,20 @@ EPSILON = 1e-12
 
 def H(x):
     '''shannon entropy'''
-    return -np.sum(x*np.log2(x))
+    # return -np.sum(x*np.log2(x))
+    return entropy(x, base=2)
+
 
 def belief_to_reward(belief_dict, actionsets):
     array = [value for value in belief_dict.values()]
     transposed_array = np.array(array)
-    belief_matrix = transposed_array + EPSILON*(transposed_array==0) # add small epsilon to null values
+    belief_matrix = transposed_array #+ EPSILON*(transposed_array==0) # add small epsilon to null values
     
+    if np.isclose(belief_matrix, belief_matrix[0]).all():
+        return {k: v for k,v in zip(actionsets, belief_matrix[0])}
     #Step 1-1 Construct the distance measure matrix DMM = BJS(ij) as follows:
     # Initialize a 4x5 array with default values (e.g., zeros)
-    rows, num_clusters = 4, 5 #rows are number of actions. cols are number of model clusters (sensors)
+    rows, num_clusters = 4, len(belief_dict) #rows are number of actions. cols are number of model clusters (sensors)
     DMM = np.zeros((num_clusters, num_clusters))
 
     for i in range(num_clusters):
@@ -40,7 +45,7 @@ def belief_to_reward(belief_dict, actionsets):
 
     #Step 1-4 : Compute the credibility degree of the evidence mi as follows:
     CRD = SUP/np.sum(SUP)
-    # print(CRD)
+    # print('credibility', CRD)
 
     #Step 2-1: Measure the belief entropy of the evidence mi as below:
     ED = compute_belief_entropy(belief_matrix, actionsets)
@@ -57,7 +62,7 @@ def belief_to_reward(belief_dict, actionsets):
     assert CRD.shape==IV_Norm.shape
     #Step 3-1: Adjust the credibility degree of the evidence mi based on the information volume of the evidence as below:
     ACrd = CRD*IV_Norm
-    # print(ACrd)
+    # print('Acrd',ACrd)
 
     #Step 3-2: Normalise the adjusted credibility degree of the evidence mi as below:
     ACrd_Norm = ACrd/ACrd.sum()
@@ -127,7 +132,7 @@ def compute_belief_entropy(array, actionsets):
         ed = 0
         for col_index, element in enumerate(col):
             cardinality = len(actionsets[col_index])
-            ed += element*np.log2(element/((2**cardinality) - 1))
+            ed += xlogy(element, (element/((2**cardinality) - 1)))/np.log(2)
         ED[index] = -ed
     return ED
 
@@ -160,13 +165,15 @@ if __name__ == "__main__":
         [0.55, 0.1, 0, 0.35],
         [0.6, 0.1, 0, 0.3]
     ])
-    # transpose_matrix[0][0]=0.41;transpose_matrix[0][1]=0.29;transpose_matrix[0][2]=0.30;transpose_matrix[0][3]=1e-12
-    # transpose_matrix[1][0]=1e-12;transpose_matrix[1][1]=0.90;transpose_matrix[1][2]=0.10;transpose_matrix[1][3]=1e-12
-    # transpose_matrix[2][0]=0.58;transpose_matrix[2][1]=0.07;transpose_matrix[2][2]=1e-12;transpose_matrix[2][3]=0.35
-    # transpose_matrix[3][0]=0.55;transpose_matrix[3][1]=0.10;transpose_matrix[3][2]=1e-12;transpose_matrix[3][3]=0.35
-    # transpose_matrix[4][0]=0.60;transpose_matrix[4][1]=0.10;transpose_matrix[4][2]=1e-12;transpose_matrix[4][3]=0.30
-
     actionsets = [frozenset({'A'}), frozenset({'B'}),frozenset({'C'}),frozenset({'A','C'})]
+
+    transpose_matrix = np.array([
+        # [1,0,0,0],
+        [0,0,0,1],
+        [0,0,0,1],
+        # [1,0,0,0],
+    ])
+    actionsets = [frozenset({'A'}), frozenset({'B'}),frozenset({'C'}),frozenset({'D'})]
     # WAE_ref = [0.5315501408507114, 0.14715770640831496, 0.052076400657720116, 0.26921575208428306]
     belief_dict = {mor: actions for mor, actions in enumerate(transpose_matrix)}
     
@@ -177,5 +184,5 @@ if __name__ == "__main__":
     # print(rews)
     keylist = rews.keys()
     result = np.array([rews[key] for key in keylist])
-    reference = np.array([rews_reference[key] for key in keylist])
-    assert np.allclose(result, reference)
+    reference = np.array([rews_reference.get(key, 0) for key in keylist])
+    assert np.allclose(result, reference), result

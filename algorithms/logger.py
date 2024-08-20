@@ -1,10 +1,12 @@
 import csv
+import os
 
 class Logger:
-    def __init__(self, filename):
+    def __init__(self, filename, overwrite=False):
         self.filename = filename
         self.columns = ['step', 'question', 'response', 'reward', 'action']
-        self.create_file()
+        if not os.path.exists(self.filename) or overwrite:
+            self.create_file()
 
     def create_file(self):
         """Create the CSV file with the headers."""
