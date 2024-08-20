@@ -5,12 +5,13 @@ from typing import Optional
 from io import StringIO
 
 class Driving(gym.Env):
-    def __init__(self, num_lanes=5, p_car=0.16, p_cat=0.09, sim_len=300, ishuman_n=False, ishuman_p=False,
+    def __init__(self, num_lanes=5, validate=False, p_car=0.16, p_cat=0.09, sim_len=300, ishuman_n=False, ishuman_p=False,
                  render_mode: Optional[str] = None):
         self.num_lanes = num_lanes
         self.road_length = 8
         self.car_speed = 1
         self.cat_speed = 3
+        self.validate = validate
         self.observation_space = gym.spaces.Dict({
             "lane_pos":  gym.spaces.Discrete(5),
             "distance": gym.spaces.Box(low=-1, high=20, shape=(2*3,)),
@@ -135,9 +136,9 @@ class Driving(gym.Env):
         if self.timestamp >= self.sim_len:
             self.done = True
 
-
+        info = self.log()
         self.state_generator()  
-        return self.state, reward, self.done, 0, {}
+        return self.state, reward, self.done, 0, info
 
     def log(self):
         return {'metric1': ('car collisions', self.num_collision),

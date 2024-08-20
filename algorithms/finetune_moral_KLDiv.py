@@ -155,7 +155,7 @@ if __name__ == "__main__":
             
             kl = kl_div(logprob_ref,logprob)
             kl_penalty_factor = 2 # based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
-            non_score_reward = (-kl_penalty_factor * kl).numpy()
+            non_score_reward = (kl_penalty_factor * kl).numpy()
             # print(non_score_reward)
             the_actions = action.cpu().numpy()
             # TRY NOT TO MODIFY: execute the game and log data.
@@ -196,6 +196,8 @@ if __name__ == "__main__":
                         print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                         writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
+                        writer.add_scalar(f"charts/episodic_{info['metric1'][0]}", info["metric1"][1], global_step)
+                        writer.add_scalar(f"charts/episodic_{info['metric2'][0]}", info["metric2"][1], global_step)
 
         #Adding logs to tensorboard for LLM question text and response text
         
