@@ -141,8 +141,8 @@ class Driving(gym.Env):
         return self.state, reward, self.done, 0, info
 
     def log(self):
-        return {'metric1': ('car collisions', self.num_collision),
-                'metric2': ('grandmas rescued',  self.num_hit_cat)}
+        return {'metric1': ('Number of car collisions', self.num_collision),
+                'metric2': ('Number of grandmas rescued',  self.num_hit_cat)}
     
     def action_as_text(self, action):
         return self.action_mapper[action]

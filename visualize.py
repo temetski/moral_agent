@@ -97,6 +97,8 @@ def run(config):
             'state': state,
             'action': action,
             'reward': reward,
+            'metric_1_name' : metrics['metric1'][0],
+            'metric_2_name' : metrics['metric2'][0],
             'metric_1' : metrics['metric1'][1],
             'metric_2' : metrics['metric2'][1]
             }
@@ -106,71 +108,41 @@ def run(config):
     env.close()
     return frames
 
-if __name__ == '__main__':    
+
+def argparser():
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--exp_name", default="ppo", type=str)
-    # parser.add_argument("--env_id", default="environments.drive:Driving", type=str)  #"environments.drive:Driving"
-    # parser.add_argument("--num_envs", default=1, type=int)
-    # parser.add_argument("--seed", default=1, type=int)
+    parser.add_argument("--exp_name", default="ppo", type=str)
+    parser.add_argument("--env_id", default="environments.drive:Driving", type=str)  #"environments.drive:Driving"
+    parser.add_argument("--num_envs", default=1, type=int)
+    parser.add_argument("--seed", default=1, type=int)
+    parser.add_argument("--model_path", default=f"runs/Driving__ppo__1__moral/kl_div/ppo_10.cleanrl_model", type=str) #Moral model with both ishuman_p and ishuman_n as False. Else case reward = -20 * car_hit + 0.5 * (action == 0)
+    parser.add_argument("--capture_video", default=False, type=bool)
+    parser.add_argument("--debug_llm", action="store_true")
+    return parser
 
-    # # parser.add_argument("--model_path", default="runs/Driving__ppo__1__moral/Basemodelwithishuman_p=True/ppo_100.cleanrl_model", type=str) #Moral model with ishuman_p=True
-    # # parser.add_argument("--model_path", default="runs/Driving__ppo__1__moral/Basemodelwithishuman_n=Falseandishuman_p_reward=-20/ppo_25.cleanrl_model", type=str) #Moral model with both ishuman_p and ishuman_n as False. Else case reward = -20 * car_hit + 0.5 * (action == 0)
-    # # parser.add_argument("--model_path", default="runs/Driving__ppo__1__1723551933/ppo.cleanrl_model", type=str) #Base model with ishuman_p=True
-    # # parser.add_argument("--model_path", default="runs/Driving__ppo__1__1723727098/ppo.cleanrl_model", type=str) #Base model with both ishuman_p and ishuman_n as False. Else case reward = -1 * car_hit + 0.5 * (action == 0)
-    # # parser.add_argument("--model_path", default="runs/Driving__ppo__1__1723727577/ppo.cleanrl_model", type=str) #Base model with both ishuman_p and ishuman_n as False. Else case reward = -20 * car_hit + 0.5 * (action == 0)
-    # parser.add_argument("--capture_video", default=False, type=bool)
-    # parser.add_argument("--debug_llm", action="store_true")
 
-    
+if __name__ == '__main__':    
+    parser = argparser()
+    config = parser.parse_args()
+
 
     stats = []
-    # Specify the CSV file name
-    csv_file = 'runs/Driving__ppo__1__moral/kl_div/results.csv'
-    # Open the CSV file for writing
-    with open(csv_file, mode='w', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=["modelNumber", "NumberOfCollision", "NumberOfRescuedGrandma"])
-        
-        # Write the header
-        writer.writeheader()
+
+    for i in range(50):
+        frames = run(config)
+        stats.append(frames[-1])
+        config.seed += 1
     
-        for j in range(5, 40, 5):
-            modelName = f"ppo_{j}.cleanrl_model"
-            print(f"-------------------Results for model number {j}--------------------")
-            
-            parser = argparse.ArgumentParser()
-            parser.add_argument("--exp_name", default="ppo", type=str)
-            parser.add_argument("--env_id", default="environments.drive:Driving", type=str)  #"environments.drive:Driving"
-            parser.add_argument("--num_envs", default=1, type=int)
-            parser.add_argument("--seed", default=1, type=int)
-            parser.add_argument("--capture_video", default=False, type=bool)
-            parser.add_argument("--debug_llm", action="store_true")
-            parser.add_argument("--model_path", default=f"runs/Driving__ppo__1__moral/kl_div/{modelName}", type=str) #Moral model with both ishuman_p and ishuman_n as False. Else case reward = -20 * car_hit + 0.5 * (action == 0)
-            config = parser.parse_args()
-            for i in range(5):
-                frames = run(config)
-                stats.append(frames[-1])
-                config.seed += 1
-           
-            print_frames(config.env_id, frames, dt=0.01, indices=[0, len(frames)-1])
-            # metric_1 = 0
-            # metric_2 = 0
-            timesteps = [i['timestep'] for i in stats]
-            metric_1 = [i['metric_1'] for i in stats]
-            metric_2 = [i['metric_2'] for i in stats]
-            print(f'Timesteps: {np.mean(timesteps)} +- {np.std(timesteps)}')
-            print(f'Number of collision: {np.mean(metric_1)} +- {np.std(metric_1)}')
-            print(f'Number of rescued grandma: {np.mean(metric_2)} +- {np.std(metric_2)}')
-            print(f'Number of collision: {metric_1}')
-            print(f'Number of rescued grandma: {metric_2}')
-            row = {
-                "modelNumber": str(j),
-                "NumberOfCollision": f"{np.mean(metric_1):.2f} ± {np.std(metric_1):.2f}",
-                "NumberOfRescuedGrandma": f"{np.mean(metric_2):.2f} ± {np.std(metric_2):.2f}"
-            }
-            # row = f"{j}, +- {np.std(metric_1)},{np.mean(metric_2)} +- {np.std(metric_2)}" 
-            writer.writerow(row)
-            stats.clear()
-        
+    print_frames(config.env_id, frames, dt=0.01, indices=[0, len(frames)-1])
+
+    timesteps = [i['timestep'] for i in stats]
+    metric_1 = [i['metric_1'] for i in stats]
+    metric_2 = [i['metric_2'] for i in stats]
+    print(f'Timesteps: {np.mean(timesteps)} +- {np.std(timesteps)}')
+    print(f'{stats[0]["metric_1_name"]}: {np.mean(metric_1)} +- {np.std(metric_1)}')
+    print(f'{stats[0]["metric_2_name"]}: {np.mean(metric_2)} +- {np.std(metric_2)}')
+    print(f'{stats[0]["metric_1_name"]}: {metric_1}')
+    print(f'{stats[0]["metric_2_name"]}: {metric_2}')        
 
     longest_idx = np.argmax(timesteps)
     print(stats[longest_idx]['frame'])
