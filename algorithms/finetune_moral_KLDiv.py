@@ -44,11 +44,22 @@ def log(logger,writer,question_response_dict,step,global_step,reward_dict,action
         for key, value in question_response_dict.items():
             logger.log(step=step, question=key, response=value, reward=reward_dict, action=action)
 
-def kl_div(p1, p2):
-    total = 0.
-    for idx in range(len(p1)):
-        total += -p1[idx]*np.log(p2[idx]/p1[idx])
-    return total
+# def kl_div(p1, p2):
+#     total = 0.
+#     for idx in range(len(p1)):
+#         total += -p1[idx]*np.log(p2[idx]/p1[idx])
+#     return total
+
+def kl_div(p,q): 
+    # Convert inputs to numpy arrays
+    p = np.asarray(p, dtype=np.float32)
+    q = np.asarray(q, dtype=np.float32)
+    # Avoid division by zero and log(0) by adding a small value (epsilon)
+    epsilon = 1e-10
+    p = p+epsilon
+    q = q+epsilon
+    divergence = np.sum(p*np.log(p/q))
+    return divergence
     
 ## OVERRIDES
 @dataclass
@@ -103,7 +114,7 @@ if __name__ == "__main__":
 
     agent = Agent(envs).to(device)
     agent.load_state_dict(torch.load(args.load_model))
-    agent.critic = agent.reset_critic(envs) # why? 
+    # agent.critic = agent.reset_critic(envs) # why? 
     #This is the reference model (frozen) fo KL divergence
     agent_ref = Agent(envs).to(device)
     agent_ref.load_state_dict(torch.load(args.load_model)) 
@@ -146,16 +157,16 @@ if __name__ == "__main__":
 
             # ALGO LOGIC: action logic
             with torch.no_grad():
-                action, logprob, _, value = agent.get_action_and_value(next_obs)
-                action_ref, logprob_ref, _, value_ref = agent_ref.get_action_and_value(next_obs)
+                action, logprob, _, value = agent.get_action_and_value(next_obs,action=None)
+                action_ref, logprob_ref, _, value_ref = agent_ref.get_action_and_value(next_obs,action=action)
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
             logprobs_ref[step] = logprob_ref
-            
-            kl = kl_div(logprob_ref,logprob)
-            kl_penalty_factor = 2 # based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
-            non_score_reward = (kl_penalty_factor * kl).numpy()
+            # with torch.no_grad():
+            #     kl = kl_div(logprobs[:step+1],logprobs_ref[:step+1])
+            #     kl_penalty_factor = 0.25 # based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
+            #     non_score_reward = (-kl_penalty_factor * kl)
             # print(non_score_reward)
             the_actions = action.cpu().numpy()
             # TRY NOT TO MODIFY: execute the game and log data.
@@ -177,15 +188,15 @@ if __name__ == "__main__":
                     print("Note: using cached LLM response")
                     reward_dict = history[tuple(envstate)]
                 shaping_reward.append(reward_dict[frozenset([str(the_actions[i])])])
-                
+                RLHF_reward = reward_dict[frozenset([str(the_actions[i])])]
                 writer.add_text("Reward & Action", f"Step {step}\n{reward_dict}\n {action}\n", global_step=global_step)
                 # Cache state-action prompts to save processing time
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
             print(f"total token usage at step {global_step} = {total_token_usage}")
             # The shaping reward is 1-p_sensor, to strongly disincentivise taking the least moral action.
-            # shaping_reward = np.add(shaping_reward, -1)
+            RLHF_reward = np.add(RLHF_reward, -1)
             # reward = np.add(reward, shaping_reward)
-            reward = shaping_reward + non_score_reward 
+            reward = reward + RLHF_reward
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
