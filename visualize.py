@@ -97,6 +97,8 @@ def run(config):
             'state': state,
             'action': action,
             'reward': reward,
+            'metric_1_name' : metrics['metric1'][0],
+            'metric_2_name' : metrics['metric2'][0],
             'metric_1' : metrics['metric1'][1],
             'metric_2' : metrics['metric2'][1]
             }
@@ -137,10 +139,10 @@ if __name__ == '__main__':
     metric_1 = [i['metric_1'] for i in stats]
     metric_2 = [i['metric_2'] for i in stats]
     print(f'Timesteps: {np.mean(timesteps)} +- {np.std(timesteps)}')
-    print(f'Number of collision: {np.mean(metric_1)} +- {np.std(metric_1)}')
-    print(f'Number of rescued grandma: {np.mean(metric_2)} +- {np.std(metric_2)}')
-    print(f'Number of collision: {metric_1}')
-    print(f'Number of rescued grandma: {metric_2}')        
+    print(f'{stats[0]["metric_1_name"]}: {np.mean(metric_1)} +- {np.std(metric_1)}')
+    print(f'{stats[0]["metric_2_name"]}: {np.mean(metric_2)} +- {np.std(metric_2)}')
+    print(f'{stats[0]["metric_1_name"]}: {metric_1}')
+    print(f'{stats[0]["metric_2_name"]}: {metric_2}')        
 
     longest_idx = np.argmax(timesteps)
     print(stats[longest_idx]['frame'])
