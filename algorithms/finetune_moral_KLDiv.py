@@ -27,7 +27,7 @@ for i in range(NUM_MORAL):
     
 # model_name = "llama3"
 model_name = "gpt-4o-mini"
-api_key = os.environ.get("OPENAI_API_KEY", "none")
+api_key = os.environ.get("OPENAI_API_KEY_COSS", "none")
 model = create_llm_env(api_key,model_name)
 final_prompt = few_shot_prompt_training()
 
@@ -51,11 +51,13 @@ kl_loss = nn.KLDivLoss(reduction="batchmean", log_target=True)
 @dataclass
 class FineTuneArgs(Args):
     num_steps: int = 64 # note it is 64 for Milk
-    total_timesteps: int = 1000*num_steps
+    total_timesteps: int = 5000*num_steps
     num_envs: int = 1
     update_epochs: int = 16
     anneal_lr: bool = False
-    load_model: str = "runs/Driving__ppo__1__1723727577/ppo_base.cleanrl_model"
+    # load_model: str = "runs/Driving__ppo__1__1723727577/ppo_base.cleanrl_model"
+    load_model: str = "runs/FindMilk-v4__ppo__1__1724404907/ppo.cleanrl_model"
+    load_model_ref: str = "runs/FindMilk-v4__ppo__1__1724404907/ppo.cleanrl_model"
     load_from: int = 0
     write_to_csv: bool = True
 kwargs = {'validate': True}
@@ -67,6 +69,8 @@ if __name__ == "__main__":
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
     env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
+    if args.load_model_ref is None:
+        args.load_model_ref = args.load_model
     run_name = f"{env_id}__{args.exp_name}__{args.seed}__moral"
     if args.track:
         import wandb
@@ -105,7 +109,7 @@ if __name__ == "__main__":
     agent.critic = agent.reset_critic(envs) # why? 
     #This is the reference model (frozen) fo KL divergence
     agent_ref = Agent(envs).to(device)
-    agent_ref.load_state_dict(torch.load(args.load_model)) 
+    agent_ref.load_state_dict(torch.load(args.load_model_ref)) 
 
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -152,7 +156,7 @@ if __name__ == "__main__":
             logprobs[step] = logprob
             logprobs_ref[step] = logprob_ref
             # kl_penalty_factor = 2 # based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
-            kl_penalty_factor = 0.25
+            kl_penalty_factor = 1.0
             with torch.no_grad():
                 kl = kl_loss(logprobs[:step+1,0], logprobs_ref[:step+1,0]).detach().numpy()
             print('kl divergence: ',kl)
@@ -186,7 +190,7 @@ if __name__ == "__main__":
             # The shaping reward is p_sensor-1, to strongly disincentivise taking the least moral action.
             # shaping_reward = np.add(shaping_reward, -1)
             # reward = np.add(reward, shaping_reward)
-            reward = RLHF_reward + non_score_reward 
+            reward = RLHF_reward 
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)

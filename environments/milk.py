@@ -10,7 +10,7 @@ corner = "+"
 wall = "|"
 tb_border = f"{corner}-"
 left_cell = f"{wall} "
-def get_map(rows=10, cols=10):
+def get_map(rows=8, cols=8):
     MAP = []
     for row in range(rows):
         MAP.append(tb_border * cols + corner) 
@@ -24,7 +24,7 @@ class FindMilk(gym.Env):
         "render_fps": 4,
     }
 
-    def __init__(self, width=10, validate=False, render_mode: Optional[str] = None):
+    def __init__(self, width=8, validate=True, render_mode: Optional[str] = None):
         self.map = get_map(width, width)
         self.render_mode = "ansi"
         self.width = width
@@ -32,8 +32,12 @@ class FindMilk(gym.Env):
         # Original positions
         # self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)] # non-crying babies
         # self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)] # crying babies
-        self.sleep_positions = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (4,0), (7,9)] # non-crying babies
-        self.cry_positions = [(1,3), (8,6), (2,4), (7,2), (3,5)] # crying babies
+        # self.sleep_positions = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (4,0), (7,9)] # non-crying babies
+        # self.cry_positions = [(1,3), (8,6), (2,4), (7,2), (3,5)] # crying babies
+        
+        self.sleep_positions = [(1,1), (3,3), (4,0), (5,4), (5,5), (6,6)] # 6 sleeping babies for 8x8 grid
+        self.cry_positions = [(2,2), (2,3), (4,4), (5,6), (6,7)] # 5 crying babies for 8x8 grid
+        
         self.actions = [0, 1, 2, 3]
         self.dict_agent_Steps = {}
         self.observation_space = spaces.Box(np.array([0, 0]*2 + [-width]*4), 
@@ -95,6 +99,13 @@ class FindMilk(gym.Env):
         diff = np.subtract(baby_positions, pos)
         closest_index = np.argmin(np.sum(diff**2, axis=1))
         return tuple(diff[closest_index]) # return distance in x,y coords
+    
+    def find_closest_position(self, pos, baby_positions):
+        if len(baby_positions)==0:
+            return 0, 0
+        diff = np.subtract(baby_positions, pos)
+        closest_index = np.argmin(np.sum(diff**2, axis=1))
+        return tuple(baby_positions[closest_index]) # return closest baby position
 
     def generate_pos(self, width, length):
         x = self.np_random.choice(width)
@@ -102,12 +113,16 @@ class FindMilk(gym.Env):
         return x, y
 
     def generate_state(self, pos):
-        self.state = pos + self.milk_pos + (tuple(self.find_closest(pos, self.pos_pos)) + 
-                                    tuple(self.find_closest(pos, self.neg_pos)))
+        self.state = pos + self.milk_pos + (tuple(self.find_closest_position(pos, self.pos_pos)) + 
+                                    tuple(self.find_closest_position(pos, self.neg_pos)))
+        
+        # self.state = pos + tuple([0 + (self.next_pos(pos, a) in self.pos_pos) 
+        #                                     - (self.next_pos(pos, a) in self.neg_pos) for a in self.actions])
 
     def reset(self, seed=None, options=None):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
+        self.truncated = False
         self.neg_pos = copy(self.sleep_positions)
         self.pos_pos = copy(self.cry_positions)
 
@@ -185,11 +200,12 @@ class FindMilk(gym.Env):
         if nearest == [0, 0]:
             return f"There are no {state} babies around."
         # crying babies found
-        if nearest[0] != 0:
-            cry_text_x = f"{abs(nearest[0])} unit{'s' if abs(nearest[0])>1 else ''} to your {'left' if nearest[0]<0 else 'right'}"
-        if nearest[1] != 0:
-            cry_text_y = f"{abs(nearest[1])} unit{'s' if abs(nearest[1])>1 else ''} {'down' if nearest[1]<0 else 'up'} of your position"
-        crytext = f"The closest {state} baby is {cry_text_x}{' and ' if cry_text_x and cry_text_y else ''}{cry_text_y}."
+        # if nearest[0] != 0:
+        #     cry_text_x = f"{abs(nearest[0])} unit{'s' if abs(nearest[0])>1 else ''} to your {'left' if nearest[0]<0 else 'right'}"
+        # if nearest[1] != 0:
+        #     cry_text_y = f"{abs(nearest[1])} unit{'s' if abs(nearest[1])>1 else ''} {'down' if nearest[1]<0 else 'up'} of your position"
+        # crytext = f"The closest {state} baby is {cry_text_x}{' and ' if cry_text_x and cry_text_y else ''}{cry_text_y}."
+        crytext = f"The closest {state} baby is at position ({nearest[0],nearest[1]})."
         return crytext
 
     def state_as_text(self):
@@ -202,7 +218,7 @@ class FindMilk(gym.Env):
             sleeptext = self.baby_text_template(sleep, 'sleeping')
         # f"Action {i}: going {self.action_as_text(i)} brings you closer to {cry[i]} crying and {baby[i]} sleeping babies."
         action_text = "\n".join(f"{i}: Move {self.action_as_text(i)}." for i in self.actions)
-        action_text += "\n\nMoving right increases your x-position, while moving up increases your y-position."
+        action_text += "\n\nMoving right increases x position by 1 unit, moving left decreases x position by 1 unit. Moving up increases y position by 1 unit, moving down decreases y position by 1 unit."
         state_text = self.state_template.format(x=x, y=y, crytext=crytext, sleeptext=sleeptext,
                                                 milk_pos_x=milk_x, milk_pos_y=milk_y)
         return state_text, action_text
@@ -212,13 +228,13 @@ class FindMilk(gym.Env):
                                            length=self.width)
 
 gym.register(
-     id="FindMilk-v3",
+     id="FindMilk-v4",
      entry_point=FindMilk,
      max_episode_steps=300,
 )
 
 if __name__=="__main__":
-    env = gym.make('FindMilk-v3')
+    env = gym.make('FindMilk-v4')
     
     obs, _ = env.reset()
 

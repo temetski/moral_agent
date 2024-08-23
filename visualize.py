@@ -112,10 +112,11 @@ def run(config):
 def argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_name", default="ppo", type=str)
-    parser.add_argument("--env_id", default="environments.drive:Driving", type=str)  #"environments.drive:Driving"
+    # parser.add_argument("--env_id", default="environments.drive:Driving", type=str)  #"environments.drive:Driving"
+    parser.add_argument("--env_id", default="environments.milk:FindMilk-v4", type=str)  #"environments.drive:Driving"
     parser.add_argument("--num_envs", default=1, type=int)
     parser.add_argument("--seed", default=1, type=int)
-    parser.add_argument("--model_path", default=f"runs/Driving__ppo__1__moral/kl_div/ppo_10.cleanrl_model", type=str) #Moral model with both ishuman_p and ishuman_n as False. Else case reward = -20 * car_hit + 0.5 * (action == 0)
+    parser.add_argument("--model_path", default=f"runs/FindMilk-v4__ppo__1__1724404907/ppo.cleanrl_model", type=str) #Moral model with both ishuman_p and ishuman_n as False. Else case reward = -20 * car_hit + 0.5 * (action == 0)
     parser.add_argument("--capture_video", default=False, type=bool)
     parser.add_argument("--debug_llm", action="store_true")
     return parser
