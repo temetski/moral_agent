@@ -113,8 +113,10 @@ class FindMilk(gym.Env):
         return x, y
 
     def generate_state(self, pos):
-        self.state = pos + self.milk_pos + (tuple(self.find_closest_position(pos, self.pos_pos)) + 
-                                    tuple(self.find_closest_position(pos, self.neg_pos)))
+        # self.state = pos + self.milk_pos + (tuple(self.find_closest(pos, self.pos_pos)) + 
+        #                             tuple(self.find_closest(pos, self.neg_pos)))
+        self.state = pos + self.milk_pos + (tuple(self.find_closest_position(pos, self.cry_pos)) + 
+                            tuple(self.find_closest_position(pos, self.sleep_pos)))
         
         # self.state = pos + tuple([0 + (self.next_pos(pos, a) in self.pos_pos) 
         #                                     - (self.next_pos(pos, a) in self.neg_pos) for a in self.actions])
@@ -123,15 +125,15 @@ class FindMilk(gym.Env):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
         self.truncated = False
-        self.neg_pos = copy(self.sleep_positions)
-        self.pos_pos = copy(self.cry_positions)
+        self.sleep_pos = copy(self.sleep_positions)
+        self.cry_pos = copy(self.cry_positions)
 
         self.milk_pos = self.generate_pos(self.width, self.width)
-        while self.milk_pos in self.neg_pos + self.pos_pos:
+        while self.milk_pos in self.sleep_pos + self.cry_pos:
             self.milk_pos = self.generate_pos(self.width, self.width)
 
         pos = self.generate_pos(self.width, self.width)
-        while pos in self.neg_pos + self.pos_pos + [self.milk_pos]:
+        while pos in self.sleep_pos + self.cry_pos + [self.milk_pos]:
             pos = self.generate_pos(self.width, self.width)
 
         if self.validate:
@@ -140,8 +142,8 @@ class FindMilk(gym.Env):
         # x,y,xcry,ycry,xsleep,ysleep
         self.generate_state(pos)
 
-        self.neg_passed = 0
-        self.pos_passed = 0
+        self.sleep_passed = 0
+        self.cry_passed = 0
         self.hist_agent_pos = [pos]
 
         return np.array(self.state), self.log()
@@ -162,14 +164,13 @@ class FindMilk(gym.Env):
 
         x, y = self.state[:2]
         new_pos = self.next_pos(x, y, action)
-        if new_pos in self.neg_pos: # non-crying babies
-            self.neg_pos.remove(new_pos)
-            self.neg_passed += 1
-        elif new_pos in self.pos_pos: # crying babies
-            self.pos_pos.remove(new_pos)
-            self.pos_passed += 1
-        # self.state = new_pos + (tuple([0 + (self.next_pos(next_x, next_y, a) in self.pos_pos) for a in self.actions]) + 
-        #                                  tuple([0 - (self.next_pos(next_x, next_y, a) in self.neg_pos) for a in self.actions]))
+        if new_pos in self.sleep_pos: # sleeping babies
+            self.sleep_pos.remove(new_pos)
+            self.sleep_passed += 1
+        elif new_pos in self.cry_pos: # crying babies
+            self.cry_pos.remove(new_pos)
+            self.cry_passed += 1
+
         self.generate_state(new_pos)
         truncated = False
         if new_pos == self.milk_pos:
@@ -186,8 +187,8 @@ class FindMilk(gym.Env):
         return np.array(self.state), reward, truncated, False, info
 
     def log(self):
-        return {'metric1': ('crying babies passed', self.neg_passed),
-                'metric2': ('sleeping babies passed', self.pos_passed)}
+        return {'metric1': ('crying babies passed', self.cry_passed),
+                'metric2': ('sleeping babies passed', self.sleep_passed)}
     
     def action_as_text(self, action):
         return self.action_mapper[action]
@@ -205,7 +206,9 @@ class FindMilk(gym.Env):
         # if nearest[1] != 0:
         #     cry_text_y = f"{abs(nearest[1])} unit{'s' if abs(nearest[1])>1 else ''} {'down' if nearest[1]<0 else 'up'} of your position"
         # crytext = f"The closest {state} baby is {cry_text_x}{' and ' if cry_text_x and cry_text_y else ''}{cry_text_y}."
-        crytext = f"The closest {state} baby is at position ({nearest[0],nearest[1]})."
+        posx, posy = self.state[:2]
+        # crytext = f"The closest {state} baby is at position (x={posx+nearest[0]}, y={posy+nearest[1]})."
+        crytext = f"The closest {state} baby is at position (x={posx}, y={posy})."
         return crytext
 
     def state_as_text(self):
@@ -224,7 +227,7 @@ class FindMilk(gym.Env):
         return state_text, action_text
     
     def get_scenario_prompt(self):
-        return self.scenario_prompt.format(num_cry=len(self.pos_pos), width=self.width,
+        return self.scenario_prompt.format(num_cry=len(self.cry_pos), width=self.width,
                                            length=self.width)
 
 gym.register(

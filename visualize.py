@@ -48,8 +48,8 @@ def print_frames(env_id, frames, dt=0.1, indices=None):
                 print(f"State: {frame['state']}")
                 print(f"Action: {frame['action']}")
                 print(f"Reward: {frame['reward']}")
-                print(f"Passed sleeping babies: {frame['metric_1']}")
-                print(f"Passed crying babies: {frame['metric_2']}")
+                print(f"{frame['metric_1_name']}: {frame['metric_1']}")
+                print(f"{frame['metric_2_name']}: {frame['metric_2']}")
                 sleep(dt)
             
 def run(config):    
