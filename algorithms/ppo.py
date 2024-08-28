@@ -38,6 +38,8 @@ class Args:
 
     # Algorithm specific arguments
     env_id: str = "environments.drive:Driving"
+    # env_id: str = "environments.milk:FindMilk-v4"
+    
     """the id of the environment"""
     total_timesteps: int = 500000
     """total timesteps of the experiments"""
@@ -79,8 +81,6 @@ class Args:
     """the mini-batch size (computed in runtime)"""
     num_iterations: int = 0
     """the number of iterations (computed in runtime)"""
-    
-    write_to_csv:bool = True
 
 
 def make_env(env_id, idx, capture_video, run_name, **kwargs):
@@ -103,7 +103,6 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     return layer
 
 
-    
 class Agent(nn.Module):
     def __init__(self, envs):
         super().__init__()
@@ -121,6 +120,17 @@ class Agent(nn.Module):
             nn.Tanh(),
             layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
         )
+        
+    def reset_critic(self,envs):
+        self.critic = nn.Sequential(
+            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 1), std=1.0),
+        )
+        return self.critic
+        
 
     def get_value(self, x):
         return self.critic(x)
@@ -131,16 +141,6 @@ class Agent(nn.Module):
         if action is None:
             action = probs.sample()
         return action, probs.log_prob(action), probs.entropy(), self.critic(x)
-    
-    def reset_critic(self, envs):
-        critic = nn.Sequential(
-                layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 64)),
-                nn.Tanh(),
-                layer_init(nn.Linear(64, 1), std=1.0),
-            )
-        return critic
 
 
 if __name__ == "__main__":
