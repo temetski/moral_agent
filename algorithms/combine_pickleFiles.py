@@ -21,11 +21,22 @@ def combine_pickles(pickle_file1, pickle_file2, output_pickle_file):
     
     print(f"Combined pickle file saved as {output_pickle_file}")
 
-# Example usage
-pickle_file1 = 'pickle1_llm_cache.pickle'
-pickle_file2 = 'pickle2_llm_cache.pickle'
-combine_pickles(pickle_file1, pickle_file2, 'combined_file.pickle')
+def update_pickle_data_format(pickle_file1):
+    with open(pickle_file1, 'rb') as f1:
+        llm_cache = pickle.load(f1)
+    new_data = {}
+    for key, reward_dict in llm_cache.items():
+        data = new_data.setdefault(key, {})
+        data["rewards"] = reward_dict
 
+    with open(pickle_file1, 'wb') as f1:
+        pickle.dump(new_data, f1)
+    return new_data
 
-
-
+if __name__=="__main__":
+    # Example usage
+    # pickle_file1 = 'pickle1_llm_cache.pickle'
+    # pickle_file2 = 'pickle2_llm_cache.pickle'
+    # combine_pickles(pickle_file1, pickle_file2, 'combined_file.pickle')
+    update_pickle_data_format('PickleCacheAndBaseModels/Milk/gpt-4o-mini_llm_cache.pickle')
+    update_pickle_data_format('PickleCacheAndBaseModels/Drive/gpt-4o-mini_llm_cache.pickle')
