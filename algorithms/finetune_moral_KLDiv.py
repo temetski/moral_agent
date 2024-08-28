@@ -15,7 +15,7 @@ from torch.distributions.categorical import Categorical
 
 import time
 from ppo import Args, Agent, make_env
-from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training, credences
+from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training, credences, moral_agent_types
 from dempster_shafer import belief_to_reward
 
 model_name = "llama3"
@@ -162,14 +162,17 @@ if __name__ == "__main__":
                     actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
                     scenario_prompt = unwrapped_env.get_scenario_prompt()
                     beliefs, question_response_dict,token_usage = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt) 
-                    total_token_usage+=token_usage            
-                    reward_dict = belief_to_reward(beliefs, actionsets)
-                    history[tuple(envstate)] = reward_dict
+                    total_token_usage+=token_usage
+                    beliefs_without_moral = {k: v for k, v in beliefs.items() if k in moral_agent_types}
+                    reward_dict = belief_to_reward(beliefs_without_moral, actionsets)
+                    data = {moral_agent: belief for moral_agent, belief in beliefs.keys()}
+                    data['rewards'] = reward_dict
+                    history[tuple(envstate)] = data
                     if step%10==0: #log after every 10 steps - TODO: Make logging step as variable
                         log(logger,writer,question_response_dict,step,global_step,reward_dict,action.cpu().numpy(), frame=unwrapped_env.render())
                 else:
                     print("Note: using cached LLM response")
-                    reward_dict = history[tuple(envstate)]
+                    reward_dict = history[tuple(envstate)]['rewards']
                 RLHF_reward = reward_dict[frozenset([str(the_actions[i])])]
                 shaping_reward.append(RLHF_reward)
                 writer.add_text("Reward & Action", f"Step {step}\n{reward_dict}\n {action}\n", global_step=global_step)
