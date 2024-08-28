@@ -22,7 +22,7 @@ for i, ma in enumerate(moral_agent_types):
 credences['moral'] = None
 
 def create_llm_env(key,model_name='llama3'):  
-    if model_name=='llama3':
+    if 'gpt' not in model_name:
         base_url = 'http://10.249.72.3:8000/v1'
     else:
         base_url = None
