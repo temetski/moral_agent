@@ -27,8 +27,7 @@ for i in range(NUM_MORAL):
 # model_name = "llama3"
 model_name = "gpt-4o-mini"
 api_key = os.environ.get("OPENAI_API_KEY", "none")
-api_key_coss = os.environ.get("OPENAI_API_KEY_COSS", "none")
-model = create_llm_env(api_key_coss,model_name)
+model = create_llm_env(api_key,model_name)
 final_prompt = few_shot_prompt_training()
 
 def log(logger,writer,question_response_dict,step,global_step,reward_dict,action,frame=None):   
