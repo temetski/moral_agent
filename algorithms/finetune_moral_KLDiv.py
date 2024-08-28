@@ -165,7 +165,7 @@ if __name__ == "__main__":
                     total_token_usage+=token_usage
                     beliefs_without_moral = {k: v for k, v in beliefs.items() if k in moral_agent_types}
                     reward_dict = belief_to_reward(beliefs_without_moral, actionsets)
-                    data = {moral_agent: belief for moral_agent, belief in beliefs.keys()}
+                    data = {moral_agent: belief for moral_agent, belief in beliefs.items()}
                     data['rewards'] = reward_dict
                     history[tuple(envstate)] = data
                     if step%10==0: #log after every 10 steps - TODO: Make logging step as variable
