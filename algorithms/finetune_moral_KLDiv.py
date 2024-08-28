@@ -15,18 +15,11 @@ from torch.distributions.categorical import Categorical
 
 import time
 from ppo import Args, Agent, make_env
-from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training
+from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training, credences
 from dempster_shafer import belief_to_reward
 
-NUM_MORAL = 5
-
-credences = np.zeros((5, NUM_MORAL))
-# Set the diagonal elements
-for i in range(NUM_MORAL):
-    credences[i, i] = 1
-    
-# model_name = "llama3"
-model_name = "gpt-4o-mini"
+model_name = "llama3"
+# model_name = "gpt-4o-mini"
 api_key = os.environ.get("OPENAI_API_KEY", "none")
 model = create_llm_env(api_key,model_name)
 final_prompt = few_shot_prompt_training()
@@ -102,7 +95,7 @@ if __name__ == "__main__":
 
     agent = Agent(envs).to(device)
     agent.load_state_dict(torch.load(args.load_model))
-    agent.critic = agent.reset_critic(envs) # why? 
+    agent.critic = agent.reset_critic(envs).to(device) # why? 
     #This is the reference model (frozen) fo KL divergence
     agent_ref = Agent(envs).to(device)
     agent_ref.load_state_dict(torch.load(args.load_model)) 
@@ -154,7 +147,7 @@ if __name__ == "__main__":
             # kl_penalty_factor = 2 # based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
             kl_penalty_factor = 0.25
             with torch.no_grad():
-                kl = kl_loss(logprobs[:step+1,0], logprobs_ref[:step+1,0]).detach().numpy()
+                kl = kl_loss(logprobs[:step+1,0], logprobs_ref[:step+1,0]).detach().cpu().numpy()
             print('kl divergence: ',kl)
             non_score_reward = -(kl_penalty_factor * kl)
             # print(non_score_reward)
