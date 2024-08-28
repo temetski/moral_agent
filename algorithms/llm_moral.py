@@ -75,10 +75,10 @@ def few_shot_prompt_training():
         {
         "question": """You are a train conductor facing a critical decision. There is a runaway trolley headed towards five workers on the main track. You can pull a lever to divert the trolley onto a side track, but there is one worker on that track. Additionally, you have the option to call for emergency assistance, though it might not arrive in time. Lastly, you could attempt to stop the trolley by placing an obstacle, but it could lead to unpredictable consequences. Should you pull the lever, call for help, place an obstacle, or do nothing and let the trolley continue on its path?
 
-Action 0: Pull the lever.
-Action 1: Call for emergency assistance.
-Action 2: Place an obstacle.
-Action 3: Do nothing.
+Action A: Pull the lever.
+Action B: Call for emergency assistance.
+Action C: Place an obstacle.
+Action D: Do nothing.
 
 Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 1.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}. Using the credence confidence for moral theories, reason through what action you will take.""",
         "answer":
@@ -94,7 +94,7 @@ Do nothing: Doing nothing may align with the principle of non-interference, resp
 
 Following deontological ethics, the most consistent course of action would be to not actively causing harm to anyone. This would adhere to my duty to avoid taking a direct action that leads to someone's death, even though this results in allowing harm to happen due to external forces beyond my control.
 
-Based these ethical credences, the probabilities of each action are: {"0": 0.05, "1": 0.3, "2": 0.05, "3": 0.6 }"""
+Based these ethical credences, the probabilities of each action are: {"A": 0.05, "B": 0.3, "C": 0.05, "D": 0.6 }"""
         },
 #         {
 #         "question": """A company is deciding whether to implement a costly environmental protection measure. This measure will significantly reduce pollution and improve public health but will also lead to increased product prices and potential job losses. Additionally, the company could partially implement the measure to balance costs and benefits, or invest in community health initiatives as an alternative solution. Should the company fully implement the measure, partially implement it, invest in community health, or not implement the measure at all?
