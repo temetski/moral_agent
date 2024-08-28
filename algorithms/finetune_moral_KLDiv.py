@@ -30,7 +30,10 @@ model_name = "gpt-4o-mini"
 api_key = os.environ.get("OPENAI_API_KEY_COSS", "none")
 model = create_llm_env(api_key,model_name)
 final_prompt = few_shot_prompt_training()
-
+agent_pos_update_t = [(4,5),(5,6)]
+agent_pos_update = [(2,3)]
+env_State_temp = [9.0, 6.0, 7.0, 7.0, 6.0, 7.0, 5.0, 5.0]
+    
 def log(logger,writer,question_response_dict,step,global_step,reward_dict,action,frame=None):   
     if args.write_to_csv==False:
         text = f"Step {step}\n"
@@ -45,19 +48,31 @@ def log(logger,writer,question_response_dict,step,global_step,reward_dict,action
             logger.log(step=step, question=key, response=value, reward=reward_dict, action=action)
 
 
-kl_loss = nn.KLDivLoss(reduction="batchmean", log_target=True)
+kl_loss = nn.KLDivLoss(reduction="sum", log_target=True)
+
+def kl_div(p,q): 
+    # Convert inputs to numpy arrays
+    p = np.asarray(p, dtype=np.float32)
+    q = np.asarray(q, dtype=np.float32)
+    # Avoid division by zero and log(0) by adding a small value (epsilon)
+    epsilon = 1e-10
+    p = p+epsilon
+    q = q+epsilon
+    # divergence = np.sum(p*np.log(p/q))
+    divergence = (np.exp(p)* (p - q)).sum()
+    return divergence
     
 ## OVERRIDES
 @dataclass
 class FineTuneArgs(Args):
     num_steps: int = 64 # note it is 64 for Milk
-    total_timesteps: int = 5000*num_steps
+    total_timesteps: int = 10000*num_steps
     num_envs: int = 1
     update_epochs: int = 16
     anneal_lr: bool = False
-    # load_model: str = "runs/Driving__ppo__1__1723727577/ppo_base.cleanrl_model"
-    load_model: str = "runs/FindMilk-v4__ppo__1__1724404907/ppo.cleanrl_model"
-    load_model_ref: str = "runs/FindMilk-v4__ppo__1__1724404907/ppo.cleanrl_model"
+    # load_model: str = "runs/Driving__ppo__1__1724832763/ppo.cleanrl_model"
+    load_model: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
+    load_model_ref: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model"
     load_from: int = 0
     write_to_csv: bool = True
 kwargs = {'validate': True}
@@ -156,10 +171,14 @@ if __name__ == "__main__":
             logprobs[step] = logprob
             logprobs_ref[step] = logprob_ref
             # kl_penalty_factor = 2 # based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
-            kl_penalty_factor = 1.0
+            kl_penalty_factor = 2
             with torch.no_grad():
-                kl = kl_loss(logprobs[:step+1,0], logprobs_ref[:step+1,0]).detach().numpy()
-            print('kl divergence: ',kl)
+                lp_finetune = nn.functional.log_softmax(logprobs[:step+1], dim=0)
+                lp_ref = nn.functional.log_softmax(logprobs_ref[:step+1], dim=0)
+                kl = kl_loss(lp_finetune,lp_ref).detach().numpy()
+                # kl_rohit = kl_div(lp_ref,lp_finetune)                
+                writer.add_scalar(f"charts/episodic_kl_divergence", kl, global_step)
+            # print('kl divergence: ',kl)
             non_score_reward = -(kl_penalty_factor * kl)
             # print(non_score_reward)
             the_actions = action.cpu().numpy()
@@ -168,6 +187,8 @@ if __name__ == "__main__":
             for i in range(args.num_envs):
                 unwrapped_env = envs.envs[i].unwrapped
                 envstate = envs.observations[i] # the unwrapped env might not have a flat observation space
+                # envstate_Update = [2,3,7,7,4,4,3,3]                
+                curr_agent_pos = envstate[:2]
                 if tuple(envstate) not in history:
                     state_text, action_text = unwrapped_env.state_as_text()
                     actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
@@ -181,16 +202,18 @@ if __name__ == "__main__":
                 else:
                     print("Note: using cached LLM response")
                     reward_dict = history[tuple(envstate)]
+                                    
                 RLHF_reward = reward_dict[frozenset([str(the_actions[i])])]
                 shaping_reward.append(RLHF_reward)
                 writer.add_text("Reward & Action", f"Step {step}\n{reward_dict}\n {action}\n", global_step=global_step)
                 # Cache state-action prompts to save processing time
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
             print(f"total token usage at step {global_step} = {total_token_usage}")
-            # The shaping reward is p_sensor-1, to strongly disincentivise taking the least moral action.
-            # shaping_reward = np.add(shaping_reward, -1)
-            # reward = np.add(reward, shaping_reward)
-            reward = RLHF_reward 
+       
+            reward = RLHF_reward + non_score_reward
+            # logText = f"{infos['metric1'][0]} {infos['metric1'][0]} {infos['metric5'][0]} Reward {reward} Kl: {kl}"
+            # print(logText)
+            
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)

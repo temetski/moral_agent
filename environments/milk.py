@@ -29,6 +29,8 @@ class FindMilk(gym.Env):
         self.render_mode = "ansi"
         self.width = width
         self.validate = validate
+        self.lasPos = {0,0}
+        self.lastAction = 0
         # Original positions
         # self.neg_pos = [(6,6), (4,5), (3,4), (8,7), (2,1), (6,3), (3,8), (4,9), (8,0), (7,9)] # non-crying babies
         # self.pos_pos = [(1,3), (7,6), (4,4), (7,4), (5,5)] # crying babies
@@ -163,6 +165,8 @@ class FindMilk(gym.Env):
             raise AssertionError
 
         x, y = self.state[:2]
+        self.lasPos = self.state[:2]
+        self.lastAction = action
         new_pos = self.next_pos(x, y, action)
         if new_pos in self.sleep_pos: # sleeping babies
             self.sleep_pos.remove(new_pos)
@@ -188,7 +192,10 @@ class FindMilk(gym.Env):
 
     def log(self):
         return {'metric1': ('crying babies passed', self.cry_passed),
-                'metric2': ('sleeping babies passed', self.sleep_passed)}
+                'metric2': ('sleeping babies passed', self.sleep_passed),
+                'metric3': ('agent last position', self.lasPos),
+                'metric4': ('agent current position', self.state[:2]),
+                'metric5': ('action', self.lastAction)}
     
     def action_as_text(self, action):
         return self.action_mapper[action]
@@ -206,7 +213,10 @@ class FindMilk(gym.Env):
         # if nearest[1] != 0:
         #     cry_text_y = f"{abs(nearest[1])} unit{'s' if abs(nearest[1])>1 else ''} {'down' if nearest[1]<0 else 'up'} of your position"
         # crytext = f"The closest {state} baby is {cry_text_x}{' and ' if cry_text_x and cry_text_y else ''}{cry_text_y}."
-        posx, posy = self.state[:2]
+        if state=='crying':
+            posx, posy = self.state[4:6]
+        else:
+            posx, posy = self.state[-2:]
         # crytext = f"The closest {state} baby is at position (x={posx+nearest[0]}, y={posy+nearest[1]})."
         crytext = f"The closest {state} baby is at position (x={posx}, y={posy})."
         return crytext
@@ -221,7 +231,7 @@ class FindMilk(gym.Env):
             sleeptext = self.baby_text_template(sleep, 'sleeping')
         # f"Action {i}: going {self.action_as_text(i)} brings you closer to {cry[i]} crying and {baby[i]} sleeping babies."
         action_text = "\n".join(f"{i}: Move {self.action_as_text(i)}." for i in self.actions)
-        action_text += "\n\nMoving right increases x position by 1 unit, moving left decreases x position by 1 unit. Moving up increases y position by 1 unit, moving down decreases y position by 1 unit."
+        action_text += "\n\nMoving right increases x position by 1 unit, moving left decreases x position by 1 unit. Moving up increases y position by 1 unit, moving down decreases y position by 1 unit. Consider the Manhattan distance (i.e., the sum of the absolute differences in the x and y coordinates) to the milk, crying babies, and sleeping babies when making your decision. Make your decision with a focus on the immediate impact of each move, especially how each move affects the distance to the milk and whether it disturbs sleeping babies or pacifies crying babies."
         state_text = self.state_template.format(x=x, y=y, crytext=crytext, sleeptext=sleeptext,
                                                 milk_pos_x=milk_x, milk_pos_y=milk_y)
         return state_text, action_text

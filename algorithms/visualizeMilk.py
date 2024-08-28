@@ -6,6 +6,8 @@ sleeping_babies_positions = [(1,1), (3,3), (4,0), (5,4), (5,5), (6,6)] # 6 sleep
 crying_babies_positions = [(2,2), (2,3), (4,4), (5,6), (6,7)] # 5 crying babies for 8x8 grid
 agent_position =(0,0)
 milk_position = (7,7)      
+
+
 grid = np.zeros((grid_size, grid_size), dtype=str)
 
 # Fill the grid with numbers
@@ -27,6 +29,11 @@ for pos in crying_babies_positions:
 for pos in sleeping_babies_positions:
     grid[grid_size-1 - pos[1], pos[0]] = 'S'
 
+# Mark the agent trajectory
+agent_steps = [(1,0),(2,0),(2,1),(2,2),(2,3),(2,4),(2,5),(3,5),(4,5),(4,4),(4,5),(4,6),(5,6),(5,7),(6,7)]
+for pos in agent_steps:
+    grid[grid_size-1 - pos[1], pos[0]] = 'A'
+
 # Create the plot
 fig, ax = plt.subplots(figsize=(8, 8))
 
@@ -42,6 +49,8 @@ for i in range(grid_size):
             ax.text(j, i, grid[i, j], va='center', ha='center', color='blue', fontsize=20)
         elif grid[i, j] == 'M':
             ax.text(j, i, grid[i, j], va='center', ha='center', color='blue', fontsize=20)
+        elif grid[i, j] == 'A':
+            ax.text(j, i, grid[i, j], va='center', ha='center', color='black', fontsize=14)
         # else:
         #     ax.text(j, i, grid[i, j], va='center', ha='center', fontsize=14)
             

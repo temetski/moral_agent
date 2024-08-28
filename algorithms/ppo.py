@@ -37,11 +37,11 @@ class Args:
     """whether to save model into the `runs/{run_name}` folder"""
 
     # Algorithm specific arguments
-    # env_id: str = "environments.drive:Driving"
-    env_id: str = "environments.milk:FindMilk-v4"
+    env_id: str = "environments.drive:Driving"
+    # env_id: str = "environments.milk:FindMilk-v4"
     
     """the id of the environment"""
-    total_timesteps: int = 100000
+    total_timesteps: int = 500000
     """total timesteps of the experiments"""
     learning_rate: float = 2.5e-4
     """the learning rate of the optimizer"""
