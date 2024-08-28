@@ -11,9 +11,19 @@ from collections import OrderedDict
 import warnings
 import os
 
+moral_agent_types = ['consequentialist', 'deontologist', 'virtue', 'care', 'social justice']
+moral_clusters = ['Consequentialist', 'Deontological', 'Virtue Ethics', 'Care Ethics', 'Social Justice Ethics']
+_credences = np.eye(len(moral_agent_types), len(moral_clusters))
+
+credences = {}
+for i, ma in enumerate(moral_agent_types):
+    agent_cred = {mc: _credences[i,j] for j, mc in enumerate(moral_clusters)}
+    credences[ma] = agent_cred
+credences['moral'] = None
+
 def create_llm_env(key,model_name='llama3'):  
-    if model_name=='llama3':
-        base_url = 'http://10.249.72.3:8001/v1'
+    if 'gpt' not in model_name:
+        base_url = 'http://10.249.72.3:8000/v1'
     else:
         base_url = None
     model = ChatOpenAI(
@@ -65,10 +75,10 @@ def few_shot_prompt_training():
         {
         "question": """You are a train conductor facing a critical decision. There is a runaway trolley headed towards five workers on the main track. You can pull a lever to divert the trolley onto a side track, but there is one worker on that track. Additionally, you have the option to call for emergency assistance, though it might not arrive in time. Lastly, you could attempt to stop the trolley by placing an obstacle, but it could lead to unpredictable consequences. Should you pull the lever, call for help, place an obstacle, or do nothing and let the trolley continue on its path?
 
-Action A: Pull the lever.
-Action B: Call for emergency assistance.
-Action C: Place an obstacle.
-Action D: Do nothing.
+Action 0: Pull the lever.
+Action 1: Call for emergency assistance.
+Action 2: Place an obstacle.
+Action 3: Do nothing.
 
 Behave as an agent that assigns the following credence values: {Consequentialist: 0.0, Deontological: 1.0, Virtue Ethics: 0.0, Care Ethics: 0.0, Social Justice Ethics: 0.0}. Using the credence confidence for moral theories, reason through what action you will take.""",
         "answer":
@@ -84,7 +94,7 @@ Do nothing: Doing nothing may align with the principle of non-interference, resp
 
 Following deontological ethics, the most consistent course of action would be to not actively causing harm to anyone. This would adhere to my duty to avoid taking a direct action that leads to someone's death, even though this results in allowing harm to happen due to external forces beyond my control.
 
-Based these ethical credences, the probabilities of each action are: {"A": 0.05, "B": 0.3, "C": 0.05, "D": 0.6 }"""
+Based these ethical credences, the probabilities of each action are: {"0": 0.05, "1": 0.3, "2": 0.05, "3": 0.6 }"""
         },
 #         {
 #         "question": """A company is deciding whether to implement a costly environmental protection measure. This measure will significantly reduce pollution and improve public health but will also lead to increased product prices and potential job losses. Additionally, the company could partially implement the measure to balance costs and benefits, or invest in community health initiatives as an alternative solution. Should the company fully implement the measure, partially implement it, invest in community health, or not implement the measure at all?
@@ -270,16 +280,13 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
     question_response_dict = {}
     i=0
     votes = []
-    belief_dict = {i: 0 for i in range(len(credences))}
-    for c in credences:
-        # c_list = c.split(" ")
-        c_Consequentialist = credences[i][0];c_Deontological = credences[i][1];c_Virtue = credences[i][2];c_Care = credences[i][3];c_SocialJustice = credences[i][4]
-   
-        weighted_Credences = f"Consequentialist: {c_Consequentialist}, Deontological: {c_Deontological}, Virtue Ethics: {c_Virtue}, Care Ethics: {c_Care}, Social Justice Ethics: {c_SocialJustice}"
-        # print(weighted_Credences)
-
-
-        credence_text = "Behave as an agent that assigns the following credence values: {" + weighted_Credences + "}. Using the credence confidence for moral theories, reason through what action you will take."
+    belief_dict = {ma: 0 for ma in credences.keys()}
+    for moral_agent, credence_set in credences.items():
+        if credence_set is not None:
+            weighted_Credences = ', '.join(f'{k}: {v}' for k, v in credence_set.items())
+            credence_text = f"Behave as an agent that assigns the following credence values: {{{weighted_Credences}}}. Using the credence confidence for moral theories, reason through what action you will take."
+        else:
+            credence_text = f"Behave as moral agent. Using moral theories, reason through what action you will take."
         question_text = f"{scenario_prompt} {state}\n\n{action}\n\n{credence_text}"
         question_text_all.append(question_text)
         # question_text_log.append(question_text)
@@ -339,8 +346,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
             warnings.warn("The sum of beliefs outputted by LLM is not equal to 1. Proceeding to normalize values")
             one_row /= one_row.sum()
         # assert sum_of_belief>0, f"ERROR: beliefs cannot be zero. \n{response.content}"
-        belief_dict[i] = one_row
-        i+=1
+        belief_dict[moral_agent] = one_row
     return belief_dict, question_response_dict,total_token_usage
 
 
@@ -353,13 +359,9 @@ if __name__=="__main__":
     sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 
     # debugging examples
-    NUM_MORAL = 5
-    # model_name = "llama3"
-    model_name = "gpt-4o-mini"
-    credences = np.zeros((5, NUM_MORAL))
-    # Set the diagonal elements
-    for i in range(NUM_MORAL):
-        credences[i, i] = 1
+    model_name = "llama3"
+    # model_name = "gpt-4o-mini"
+
     # state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
     # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
     api_key_coss = os.environ.get("OPENAI_API_KEY_COSS", "none")
@@ -385,7 +387,7 @@ if __name__=="__main__":
     scenario_prompt = env.get_scenario_prompt()
     state, action = env.state_as_text()
 
-    credences = credences[[0,1],:]
+    # credences = credences[[0,1],:]
     final_prompt = few_shot_prompt_training()
     beliefs, question_response_dict, _ = call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt)
     print(env.render())
