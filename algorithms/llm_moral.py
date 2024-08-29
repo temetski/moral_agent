@@ -4,7 +4,6 @@ from langchain.prompts.prompt import PromptTemplate
 from langchain_openai import ChatOpenAI
 
 import numpy as np
-import re
 import regex
 import json
 from collections import OrderedDict
@@ -318,8 +317,12 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
             print("No matches found.")
             match = '{"0": 0.0, "1": 0.0, "2": 0.0}'
     
-
-        beliefs = json.loads(match, object_pairs_hook=OrderedDict) # ensure dictionary does not reorder choices
+        try:
+            beliefs = json.loads(match, object_pairs_hook=OrderedDict) # ensure dictionary does not reorder choices
+        except json.decoder.JSONDecodeError:
+            # perhaps missing quotes
+            key_fix_pattern = r'([a-zA-Z0-9-.]+):[\s])'
+            regex.sub(key_fix_pattern, r'"\1": $2', match)
         # print(beliefs)
         # Fill missing values if LLM does not output beliefs for other actions
         for actionset in actionsets:
