@@ -18,11 +18,14 @@ from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training, credences, moral_agent_types
 from dempster_shafer import belief_to_reward
 
-model_name = "llama3"
+model_name = "mistral"
 # model_name = "gpt-4o-mini"
 api_key = os.environ.get("OPENAI_API_KEY", "none")
 model = create_llm_env(api_key,model_name)
 final_prompt = few_shot_prompt_training()
+# agent_pos_update_t = [(4,5),(5,6)]
+# agent_pos_update = [(2,3)]
+# env_State_temp = [9.0, 6.0, 7.0, 7.0, 6.0, 7.0, 5.0, 5.0]
 
 def log(logger,writer,question_response_dict,step,global_step,reward_dict,action,frame=None):   
     if args.write_to_csv==False:
@@ -38,17 +41,19 @@ def log(logger,writer,question_response_dict,step,global_step,reward_dict,action
             logger.log(step=step, question=key, response=value, reward=reward_dict, action=action)
 
 
-kl_loss = nn.KLDivLoss(reduction="batchmean", log_target=True)
+kl_loss = nn.KLDivLoss(reduction="sum", log_target=True) # TODO: figure out how to properly implement batchmean
     
 ## OVERRIDES
 @dataclass
 class FineTuneArgs(Args):
     num_steps: int = 64 # note it is 64 for Milk
-    total_timesteps: int = 1000*num_steps
+    total_timesteps: int = 10000*num_steps
     num_envs: int = 1
-    update_epochs: int = 16
+    update_epochs: int = 8
     anneal_lr: bool = False
-    load_model: str = "runs/Driving__ppo__1__1723727577/ppo_base.cleanrl_model"
+    # load_model: str = "runs/Driving__ppo__1__1724832763/ppo.cleanrl_model"
+    load_model: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
+    load_model_ref: str = None#"runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model"
     load_from: int = 0
     write_to_csv: bool = True
     use_kl: bool = True
@@ -61,6 +66,8 @@ if __name__ == "__main__":
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
     env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
+    if args.load_model_ref is None:
+        args.load_model_ref = args.load_model
     run_name = f"{env_id}__{args.exp_name}__{args.seed}__moral"
     if args.track:
         import wandb
@@ -99,7 +106,7 @@ if __name__ == "__main__":
     agent.critic = agent.reset_critic(envs).to(device) # why? 
     #This is the reference model (frozen) fo KL divergence
     agent_ref = Agent(envs).to(device)
-    agent_ref.load_state_dict(torch.load(args.load_model)) 
+    agent_ref.load_state_dict(torch.load(args.load_model_ref)) 
 
 
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
@@ -146,9 +153,12 @@ if __name__ == "__main__":
             logprobs[step] = logprob
             logprobs_ref[step] = logprob_ref
             # kl_penalty_factor = 2 # based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
-            kl_penalty_factor = 0.25
+            kl_penalty_factor = 2
             with torch.no_grad():
-                kl = kl_loss(logprobs[:step+1,0], logprobs_ref[:step+1,0]).detach().cpu().numpy()
+                lp_finetune = nn.functional.log_softmax(logprobs[:step+1], dim=0)
+                lp_ref = nn.functional.log_softmax(logprobs_ref[:step+1], dim=0)
+                kl = kl_loss(lp_finetune, lp_ref).detach().cpu().numpy()
+            writer.add_scalar(f"charts/kl_div", kl, global_step)
             non_score_reward = -(kl_penalty_factor * kl)
             the_actions = action.cpu().numpy()
             # TRY NOT TO MODIFY: execute the game and log data.
@@ -156,6 +166,8 @@ if __name__ == "__main__":
             for i in range(args.num_envs):
                 unwrapped_env = envs.envs[i].unwrapped
                 envstate = envs.observations[i] # the unwrapped env might not have a flat observation space
+                # # envstate_Update = [2,3,7,7,4,4,3,3]                
+                # curr_agent_pos = envstate[:2]
                 if tuple(envstate) not in history:
                     state_text, action_text = unwrapped_env.state_as_text()
                     actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
