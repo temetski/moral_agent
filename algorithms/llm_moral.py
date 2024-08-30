@@ -323,6 +323,9 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
             # perhaps missing quotes
             key_fix_pattern = r'([a-zA-Z0-9-.]+):[\s])'
             regex.sub(key_fix_pattern, r'"\1": $2', match)
+            beliefs = json.loads(match, object_pairs_hook=OrderedDict)
+        except Exception as e:
+            print(e, response.content)
         # print(beliefs)
         # Fill missing values if LLM does not output beliefs for other actions
         for actionset in actionsets:
@@ -362,7 +365,7 @@ if __name__=="__main__":
     sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 
     # debugging examples
-    model_name = "llama3"
+    model_name = "mistral"
     # model_name = "gpt-4o-mini"
 
     # state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
@@ -379,12 +382,13 @@ if __name__=="__main__":
 # Action C: Going left brings you closer to 1 crying and 1 sleeping babies.
 # Action D: Going right brings you closer to 0 crying and 2 sleeping babies."""
 
-    env = gym.make('environments.milk:FindMilk-v3', render_mode='ansi', validate=True)
+    env = gym.make('environments.milk:FindMilk-v4', render_mode='ansi', validate=True)
     env.reset()
     new_pos = (8,5)
-    # new_pos = (4,2)
+    new_pos = (4,5)
     # env.unwrapped.milk_pos = (4,6)
     env.generate_state(new_pos)
+    env.unwrapped.state[4:] = [5,6,5,5]
     actionsets = [frozenset([str(k)]) for k in env.action_mapper.keys()]
 
     scenario_prompt = env.get_scenario_prompt()
