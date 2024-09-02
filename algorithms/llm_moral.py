@@ -20,7 +20,7 @@ for i, ma in enumerate(moral_agent_types):
     credences[ma] = agent_cred
 credences['moral'] = None
 
-def create_llm_env(key,model_name='llama3'):  
+def create_llm_env(key, model_name='llama3', seed=42):  
     if 'gpt' not in model_name:
         base_url = 'http://10.249.72.3:8000/v1'
     else:
@@ -33,6 +33,7 @@ def create_llm_env(key,model_name='llama3'):
         max_retries=2,
         api_key=key,  # if you prefer to pass api key in directly instaed of using env vars
         base_url=base_url,
+        seed=seed,
         # organization="...",
         # other params...
     )
