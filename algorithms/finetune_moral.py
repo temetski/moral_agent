@@ -18,10 +18,10 @@ from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training, credences, moral_agent_types
 from dempster_shafer import belief_to_reward
 
-model_name = "mistral"
-# model_name = "gpt-4o-mini"
+# model_name = "mister"
+model_name = "gpt-4o-mini"
 api_key = os.environ.get("OPENAI_API_KEY", "none")
-model = create_llm_env(api_key,model_name)
+model = create_llm_env(api_key, model_name)
 final_prompt = few_shot_prompt_training()
 # agent_pos_update_t = [(4,5),(5,6)]
 # agent_pos_update = [(2,3)]
@@ -46,10 +46,10 @@ kl_loss = nn.KLDivLoss(reduction="sum", log_target=True) # TODO: figure out how 
 ## OVERRIDES
 @dataclass
 class FineTuneArgs(Args):
-    num_steps: int = 64 # note it is 64 for Milk
-    total_timesteps: int = 10000*num_steps
+    num_steps: int = 128 # note it is 64 for Milk
+    total_timesteps: int = 2000*num_steps
     num_envs: int = 1
-    update_epochs: int = 8
+    update_epochs: int = 16
     anneal_lr: bool = False
     # load_model: str = "runs/Driving__ppo__1__1724832763/ppo.cleanrl_model"
     load_model: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
@@ -57,6 +57,8 @@ class FineTuneArgs(Args):
     load_from: int = 0
     write_to_csv: bool = True
     use_kl: bool = True
+    kl_penalty_factor: float = 2.5 # 2  based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
+
 kwargs = {'validate': True}
 
 if __name__ == "__main__":
@@ -139,6 +141,9 @@ if __name__ == "__main__":
             lrnow = frac * args.learning_rate
             optimizer.param_groups[0]["lr"] = lrnow
 
+        running_reward = []
+        running_logprobs = []
+        running_logprobs_ref = []
         for step in range(0, args.num_steps):
             global_step += args.num_envs
             obs[step] = next_obs
@@ -151,13 +156,14 @@ if __name__ == "__main__":
                 values[step] = value.flatten()
             actions[step] = action
             logprobs[step] = logprob
-            logprobs_ref[step] = logprob_ref
-            # kl_penalty_factor = 2 # based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
-            kl_penalty_factor = 2
-            with torch.no_grad():
-                lp_finetune = nn.functional.log_softmax(logprobs[:step+1], dim=0)
-                lp_ref = nn.functional.log_softmax(logprobs_ref[:step+1], dim=0)
-                kl = kl_loss(lp_finetune, lp_ref).detach().cpu().numpy()
+            # logprobs_ref[step] = logprob_ref
+            running_logprobs.append(logprob)
+            running_logprobs_ref.append(logprob_ref)
+            kl_penalty_factor = args.kl_penalty_factor
+            with torch.no_grad(): # tensors all on CPU
+                lp_finetune = nn.functional.log_softmax(torch.Tensor(running_logprobs), dim=0)
+                lp_ref = nn.functional.log_softmax(torch.Tensor(running_logprobs_ref), dim=0)
+                kl = kl_loss(lp_finetune, lp_ref).detach().numpy()
             writer.add_scalar(f"charts/kl_div", kl, global_step)
             non_score_reward = -(kl_penalty_factor * kl)
             the_actions = action.cpu().numpy()
@@ -169,32 +175,43 @@ if __name__ == "__main__":
                 # # envstate_Update = [2,3,7,7,4,4,3,3]                
                 # curr_agent_pos = envstate[:2]
                 if tuple(envstate) not in history:
+                    print("Note: sending query to LLM")
                     state_text, action_text = unwrapped_env.state_as_text()
                     actionsets = [frozenset([str(k)]) for k in unwrapped_env.action_mapper.keys()] #TODO: review str casting 
                     scenario_prompt = unwrapped_env.get_scenario_prompt()
-                    beliefs, question_response_dict,token_usage = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt) 
+                    beliefs, question_response_dict,token_usage, error_flag = call_llm_with_state_action(scenario_prompt,actionsets,state_text,action_text,credences,model,final_prompt) 
                     total_token_usage+=token_usage
                     beliefs_without_moral = {k: v for k, v in beliefs.items() if k in moral_agent_types}
                     reward_dict = belief_to_reward(beliefs_without_moral, actionsets)
                     data = {moral_agent: belief for moral_agent, belief in beliefs.items()}
                     data['rewards'] = reward_dict
+                    if error_flag:
+                        data['error'] = True
+                        data['response'] = question_response_dict
                     history[tuple(envstate)] = data
                     if step%10==0: #log after every 10 steps - TODO: Make logging step as variable
                         log(logger,writer,question_response_dict,step,global_step,reward_dict,action.cpu().numpy(), frame=unwrapped_env.render())
+                    print(f"total token usage at step {global_step} = {total_token_usage}")
                 else:
-                    print("Note: using cached LLM response")
                     reward_dict = history[tuple(envstate)]['rewards']
                 RLHF_reward = reward_dict[frozenset([str(the_actions[i])])]
                 shaping_reward.append(RLHF_reward)
                 writer.add_text("Reward & Action", f"Step {step}\n{reward_dict}\n {action}\n", global_step=global_step)
                 # Cache state-action prompts to save processing time
-            next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
-            print(f"total token usage at step {global_step} = {total_token_usage}")
+            next_obs, env_reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
+            running_reward.append(RLHF_reward)
             # The shaping reward is p_sensor-1, to strongly disincentivise taking the least moral action.
             # shaping_reward = np.add(shaping_reward, -1)
-            # reward = np.add(reward, shaping_reward)
-            reward = RLHF_reward + non_score_reward 
+            # reward = np.add(reward, shaping_reward) 
+
             next_done = np.logical_or(terminations, truncations)
+            # reward = 0
+            reward = non_score_reward + RLHF_reward
+            if any(next_done): # only works for num_envs==1
+                # reward = non_score_reward + np.mean(running_reward)*any(terminations)
+                running_reward = []
+                running_logprobs = []
+                running_logprobs_ref = []
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
 
@@ -204,6 +221,7 @@ if __name__ == "__main__":
                         print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                         writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
+                        writer.add_scalar("charts/finetune_return", reward, global_step)
                         writer.add_scalar(f"charts/episodic_{info['metric1'][0]}", info["metric1"][1], global_step)
                         writer.add_scalar(f"charts/episodic_{info['metric2'][0]}", info["metric2"][1], global_step)
 
