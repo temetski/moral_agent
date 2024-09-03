@@ -19,7 +19,7 @@ from torch.utils.tensorboard import SummaryWriter
 class Args:
     exp_name: str = os.path.basename(__file__)[: -len(".py")]
     """the name of this experiment"""
-    seed: int = 1
+    seed: int = 42
     """seed of the experiment"""
     torch_deterministic: bool = True
     """if toggled, `torch.backends.cudnn.deterministic=False`"""
@@ -34,7 +34,7 @@ class Args:
     capture_video: bool = False
     """whether to capture videos of the agent performances (check out `videos` folder)"""
     save_model: bool = True
-    """whether to save model into the `runs/{run_name}` folder"""
+    """whether to save model into the `models/{run_name}` folder"""
 
     # Algorithm specific arguments
     env_id: str = "environments.drive:Driving"
@@ -73,6 +73,8 @@ class Args:
     """the maximum norm for the gradient clipping"""
     target_kl: float = None
     """the target KL divergence threshold"""
+    use_heuristic: bool = False
+    """toggle handcrafted reward model"""
 
     # to be filled in runtime
     batch_size: int = 0
@@ -149,11 +151,10 @@ if __name__ == "__main__":
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
     env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
-    run_name = f"{env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
+    run_name = f"{env_id}_{args.seed}"
     
     kwargs = {'validate': True,
-          'heuristic': True}
-
+              'heuristic': args.use_heuristic}
 
     if args.track:
         import wandb
@@ -167,7 +168,7 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(f"runs/{run_name}")
+    writer = SummaryWriter(f"models/{run_name}")
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
@@ -334,7 +335,7 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
     if args.save_model:
-        model_path = f"runs/{run_name}/{args.exp_name}.cleanrl_model"
+        model_path = f"models/{run_name}/base{'_heuristic' if args.use_heuristic else ''}.cleanrl_model"
         torch.save(agent.state_dict(), model_path)
         print(f"model saved to {model_path}")
 

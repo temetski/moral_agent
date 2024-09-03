@@ -51,8 +51,7 @@ class FineTuneArgs(Args):
     num_envs: int = 1
     update_epochs: int = 8
     anneal_lr: bool = False
-    # load_model: str = "runs/Driving__ppo__1__1724832763/ppo.cleanrl_model"
-    load_model: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
+    load_model: str = f"models/{Args.env_id}__{Args.seed}/base.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
     load_model_ref: str = None#"runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model"
     load_from: int = 0
     write_to_csv: bool = True
@@ -70,7 +69,7 @@ if __name__ == "__main__":
     env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
     if args.load_model_ref is None:
         args.load_model_ref = args.load_model
-    run_name = f"{env_id}__{args.exp_name}__{args.seed}__moral"
+    run_name = f"{env_id}_{args.seed}"
     if args.track:
         import wandb
 
@@ -83,13 +82,14 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(f"runs/{run_name}{'/kl_div' if args.use_kl else ''}/", filename_suffix=model_name)
+    save_folder = f"{run_name}{'/moral_llm' if args.use_kl else ''}/"
+    writer = SummaryWriter(f"models/{save_folder}/", filename_suffix=model_name)
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
 
-    logger = Logger(f"runs/{run_name}/{model_name}_log.csv")
+    logger = Logger(f"models/{run_name}/{model_name}_log.csv")
     # TRY NOT TO MODIFY: seeding
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
     total_token_usage = 0
-    history_path = f'runs/{run_name}/{model_name}_llm_cache.pickle'
+    history_path = f'models/{run_name}/{model_name}_llm_cache.pickle'
     history = {}
     if os.path.isfile(history_path):
         with open(history_path, 'rb') as handle:
@@ -322,7 +322,7 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            model_path = f"runs/{run_name}{'/kl_div' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
+            model_path = f"models/{run_name}{'/moral_llm' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 

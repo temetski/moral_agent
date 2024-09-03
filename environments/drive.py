@@ -6,7 +6,7 @@ from io import StringIO
 
 class Driving(gym.Env):
     def __init__(self, num_lanes=5, validate=False, p_car=0.16, p_cat=0.09, sim_len=300, ishuman_n=False, ishuman_p=False,
-                 render_mode: Optional[str] = None):
+                 render_mode: Optional[str] = None, **kwargs):
         self.num_lanes = num_lanes
         self.road_length = 8
         self.car_speed = 1
