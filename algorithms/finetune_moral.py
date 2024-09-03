@@ -47,9 +47,9 @@ kl_loss = nn.KLDivLoss(reduction="sum", log_target=True) # TODO: figure out how 
 @dataclass
 class FineTuneArgs(Args):
     num_steps: int = 128 # note it is 64 for Milk
-    total_timesteps: int = 2000*num_steps
+    total_timesteps: int = 1000*num_steps
     num_envs: int = 1
-    update_epochs: int = 16
+    update_epochs: int = 8
     anneal_lr: bool = False
     # load_model: str = "runs/Driving__ppo__1__1724832763/ppo.cleanrl_model"
     load_model: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
