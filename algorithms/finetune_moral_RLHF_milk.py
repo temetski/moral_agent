@@ -1,10 +1,6 @@
-# docs and experiment results can be found at https://docs.cleanrl.dev/rl-algorithms/ppo/#ppopy
 import os
 import sys
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
-import random
-import time
-from dataclasses import dataclass
 
 import gymnasium as gym
 import numpy as np
@@ -12,149 +8,86 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import tyro
-from torch.distributions.categorical import Categorical
+from dataclasses import dataclass
+from logger import Logger
 from torch.utils.tensorboard import SummaryWriter
+from torch.distributions.categorical import Categorical
 
-@dataclass
-class Args:
-    exp_name: str = os.path.basename(__file__)[: -len(".py")]
-    """the name of this experiment"""
-    seed: int = 1
-    """seed of the experiment"""
-    torch_deterministic: bool = True
-    """if toggled, `torch.backends.cudnn.deterministic=False`"""
-    cuda: bool = True
-    """if toggled, cuda will be enabled by default"""
-    track: bool = False
-    """if toggled, this experiment will be tracked with Weights and Biases"""
-    wandb_project_name: str = "cleanRL"
-    """the wandb's project name"""
-    wandb_entity: str = None
-    """the entity (team) of wandb's project"""
-    capture_video: bool = False
-    """whether to capture videos of the agent performances (check out `videos` folder)"""
-    save_model: bool = True
-    """whether to save model into the `runs/{run_name}` folder"""
+import time
+from ppo import Args, Agent, make_env
+from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training
+from dempster_shafer import belief_to_reward
 
-    # Algorithm specific arguments
-    env_id: str = "environments.drive:Driving"
-    # env_id: str = "environments.milk:FindMilk-v4"
+NUM_MORAL = 5
+
+credences = np.zeros((5, NUM_MORAL))
+# Set the diagonal elements
+for i in range(NUM_MORAL):
+    credences[i, i] = 1
     
-    """the id of the environment"""
-    total_timesteps: int = 500000
-    """total timesteps of the experiments"""
-    learning_rate: float = 2.5e-4
-    """the learning rate of the optimizer"""
-    num_envs: int = 4
-    """the number of parallel game environments"""
-    num_steps: int = 128
-    """the number of steps to run in each environment per policy rollout"""
-    anneal_lr: bool = True
-    """Toggle learning rate annealing for policy and value networks"""
-    gamma: float = 0.99
-    """the discount factor gamma"""
-    gae_lambda: float = 0.95
-    """the lambda for the general advantage estimation"""
-    num_minibatches: int = 4
-    """the number of mini-batches"""
-    update_epochs: int = 4
-    """the K epochs to update the policy"""
-    norm_adv: bool = True
-    """Toggles advantages normalization"""
-    clip_coef: float = 0.2
-    """the surrogate clipping coefficient"""
-    clip_vloss: bool = True
-    """Toggles whether or not to use a clipped loss for the value function, as per the paper."""
-    ent_coef: float = 0.01
-    """coefficient of the entropy"""
-    vf_coef: float = 0.5
-    """coefficient of the value function"""
-    max_grad_norm: float = 0.5
-    """the maximum norm for the gradient clipping"""
-    target_kl: float = None
-    """the target KL divergence threshold"""
-
-    # to be filled in runtime
-    batch_size: int = 0
-    """the batch size (computed in runtime)"""
-    minibatch_size: int = 0
-    """the mini-batch size (computed in runtime)"""
-    num_iterations: int = 0
-    """the number of iterations (computed in runtime)"""
+# model_name = "llama3"
+model_name = "gpt-4o-mini"
+api_key = os.environ.get("OPENAI_API_KEY_COSS", "none")
+model = create_llm_env(api_key,model_name)
+final_prompt = few_shot_prompt_training()
+agent_pos_update_t = [(4,5),(5,6)]
+agent_pos_update = [(2,3)]
+env_State_temp = [9.0, 6.0, 7.0, 7.0, 6.0, 7.0, 5.0, 5.0]
+    
+def log(logger,writer,question_response_dict,step,global_step,reward_dict,action,frame=None):   
+    if args.write_to_csv==False:
+        text = f"Step {step}\n"
+        i = 0
+        for key, value in question_response_dict.items():
+            text += f"-------Question Prompt with credence index - {i}-------\n {key}\n -------Response Prompt-------\n{value}\n--------------------------------------\n"
+            i+=1
+            
+        writer.add_text("LLM Prompts", f"\n{frame if frame is not None else ''}" + text, global_step)
+    else:
+        for key, value in question_response_dict.items():
+            logger.log(step=step, question=key, response=value, reward=reward_dict, action=action)
 
 
-def make_env(env_id, idx, capture_video, run_name, **kwargs):
-    def thunk():
-        if capture_video and idx == 0:
-            env = gym.make(env_id, render_mode="rgb_array", **kwargs)
-            env = gym.wrappers.RecordVideo(env, f"videos/{run_name}")
-        else:
-            env = gym.make(env_id, **kwargs)
-        env = gym.wrappers.FlattenObservation(env)
-        env = gym.wrappers.RecordEpisodeStatistics(env)
-        return env
+kl_loss = nn.KLDivLoss(reduction="sum", log_target=True)
 
-    return thunk
-
-
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-    torch.nn.init.orthogonal_(layer.weight, std)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
-
-
-class Agent(nn.Module):
-    def __init__(self, envs):
-        super().__init__()
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=1.0),
-        )
-        self.actor = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, envs.single_action_space.n), std=0.01),
-        )
-        
-    def reset_critic(self,envs):
-        self.critic = nn.Sequential(
-            layer_init(nn.Linear(np.array(envs.single_observation_space.shape).prod(), 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=1.0),
-        )
-        return self.critic
-        
-
-    def get_value(self, x):
-        return self.critic(x)
-
-    def get_action_and_value(self, x, action=None):
-        logits = self.actor(x)
-        probs = Categorical(logits=logits)
-        if action is None:
-            action = probs.sample()
-        return action, probs.log_prob(action), probs.entropy(), self.critic(x)
-
+def kl_div(p,q): 
+    # Convert inputs to numpy arrays
+    p = np.asarray(p, dtype=np.float32)
+    q = np.asarray(q, dtype=np.float32)
+    # Avoid division by zero and log(0) by adding a small value (epsilon)
+    epsilon = 1e-10
+    p = p+epsilon
+    q = q+epsilon
+    # divergence = np.sum(p*np.log(p/q))
+    divergence = (np.exp(p)* (p - q)).sum()
+    return divergence
+    
+## OVERRIDES
+@dataclass
+class FineTuneArgs(Args):
+    num_steps: int = 64 # note it is 64 for Milk
+    total_timesteps: int = 10000*num_steps
+    num_envs: int = 1
+    update_epochs: int = 16
+    anneal_lr: bool = False
+    # load_model: str = "runs/Driving__ppo__1__1724832763/ppo.cleanrl_model"
+    load_model: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
+    load_model_ref: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model"
+    load_from: int = 0
+    write_to_csv: bool = True
+kwargs = {'validate': True,
+          'heuristic': False}
 
 if __name__ == "__main__":
-    args = tyro.cli(Args)
+    import pickle
+    args = tyro.cli(FineTuneArgs)
     args.batch_size = int(args.num_envs * args.num_steps)
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
     env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
-    run_name = f"{env_id}__{args.exp_name}__{args.seed}__{int(time.time())}"
-    
-    kwargs = {'validate': True,
-          'heuristic': True}
-
-
+    if args.load_model_ref is None:
+        args.load_model_ref = args.load_model
+    run_name = f"{env_id}__{args.exp_name}__{args.seed}__moral"
     if args.track:
         import wandb
 
@@ -167,14 +100,14 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(f"runs/{run_name}")
+    writer = SummaryWriter(f"runs/{run_name}/kl_div/", filename_suffix=model_name)
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
 
+    logger = Logger(f"runs/{run_name}/{model_name}_log.csv")
     # TRY NOT TO MODIFY: seeding
-    random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.backends.cudnn.deterministic = args.torch_deterministic
@@ -188,12 +121,19 @@ if __name__ == "__main__":
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
 
     agent = Agent(envs).to(device)
+    agent.load_state_dict(torch.load(args.load_model))
+    agent.critic = agent.reset_critic(envs) # why? 
+    #This is the reference model (frozen) fo KL divergence
+    agent_ref = Agent(envs).to(device)
+    agent_ref.load_state_dict(torch.load(args.load_model_ref)) 
+
+
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
     obs = torch.zeros((args.num_steps, args.num_envs) + envs.single_observation_space.shape).to(device)
-    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
     logprobs = torch.zeros((args.num_steps, args.num_envs)).to(device)
+    logprobs_ref = torch.zeros((args.num_steps, args.num_envs)).to(device)
     rewards = torch.zeros((args.num_steps, args.num_envs)).to(device)
     dones = torch.zeros((args.num_steps, args.num_envs)).to(device)
     values = torch.zeros((args.num_steps, args.num_envs)).to(device)
@@ -204,8 +144,36 @@ if __name__ == "__main__":
     next_obs, _ = envs.reset(seed=args.seed)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
-
-    for iteration in range(1, args.num_iterations + 1):
+    total_token_usage = 0
+    history_path = f'runs/{run_name}/{model_name}_llm_cache.pickle'
+    history = {}
+    if os.path.isfile(history_path):
+        with open(history_path, 'rb') as handle:
+            history = pickle.load(handle)
+            
+    #Load Human Policy 
+    hpolicy = {}
+    actions = range(4)
+    with open('runs/human_policy/hpolicy_milk.pkl', 'rb') as f:
+        trajectory = pickle.load(f)
+    for key in trajectory:
+        if key[0] not in hpolicy:
+            probs = []
+            count = []
+            for action in actions:
+                try:
+                    count.append(trajectory[(key[0], action)])
+                except:
+                    count.append(0)
+            total_cnt = sum(count)
+            # probs = [0.6**count[int(action.numpy())]*(1-0.6)**(total_cnt-count[int(action.numpy())]) for action in actions]
+            probs = [0.6**count[action]*(1-0.6)**(total_cnt-count[action]) for action in actions]
+            total_prob = sum(probs)
+            probs = [p / total_prob for p in probs]
+            hpolicy[key[0]] = probs
+    
+    actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
+    for iteration in range(args.load_from+1, args.load_from + args.num_iterations + 1):
         # Annealing the rate if instructed to do so.
         if args.anneal_lr:
             frac = 1.0 - (iteration - 1.0) / args.num_iterations
@@ -220,12 +188,42 @@ if __name__ == "__main__":
             # ALGO LOGIC: action logic
             with torch.no_grad():
                 action, logprob, _, value = agent.get_action_and_value(next_obs)
+                # _, logprob_ref, _, _ = agent_ref.get_action_and_value(next_obs, action=action)
                 values[step] = value.flatten()
-            actions[step] = action
-            logprobs[step] = logprob
-
+            
+            # print(non_score_reward)
+            the_actions = action.cpu().numpy()
             # TRY NOT TO MODIFY: execute the game and log data.
+            shaping_reward = []
+            for i in range(args.num_envs):
+                unwrapped_env = envs.envs[i].unwrapped
+                envstate = envs.observations[i] # the unwrapped env might not have a flat observation space
+                # envstate_Update = [2,3,7,7,4,4,3,3]                
+                curr_agent_pos = envstate[:2]
+                
             next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
+            key = tuple(next_obs.flatten())
+            if key in hpolicy:
+                hprobs = hpolicy[key]
+                actions[step] = action
+                logprobs[step] = logprob
+                logprobs_ref[step] =  np.log(hprobs[action])
+                # kl_penalty_factor = 2 # 2 for Milk and 0.25 for Drive based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
+                kl_penalty_factor = 2
+                with torch.no_grad():
+                    lp_finetune = nn.functional.log_softmax(logprobs[:step+1], dim=0)
+                    lp_ref = nn.functional.log_softmax(logprobs_ref[:step+1], dim=0)
+                    kl = kl_loss(lp_finetune,lp_ref).detach().numpy()
+                    # kl_rohit = kl_div(lp_ref,lp_finetune)                
+                    writer.add_scalar(f"charts/episodic_kl_divergence", kl, global_step)
+                print('kl divergence: ',kl)
+                non_score_reward = -(kl_penalty_factor * kl)
+        
+                reward = reward + non_score_reward
+           
+            # logText = f"{infos['metric1'][0]} {infos['metric1'][0]} {infos['metric5'][0]} Reward {reward} Kl: {kl}"
+            # print(logText)
+            
             next_done = np.logical_or(terminations, truncations)
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
@@ -239,6 +237,8 @@ if __name__ == "__main__":
                         writer.add_scalar(f"charts/episodic_{info['metric1'][0]}", info["metric1"][1], global_step)
                         writer.add_scalar(f"charts/episodic_{info['metric2'][0]}", info["metric2"][1], global_step)
 
+        #Adding logs to tensorboard for LLM question text and response text
+        
         # bootstrap value if not done
         with torch.no_grad():
             next_value = agent.get_value(next_obs).reshape(1, -1)
@@ -333,10 +333,12 @@ if __name__ == "__main__":
         print("SPS:", int(global_step / (time.time() - start_time)))
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
-    if args.save_model:
-        model_path = f"runs/{run_name}/{args.exp_name}.cleanrl_model"
-        torch.save(agent.state_dict(), model_path)
-        print(f"model saved to {model_path}")
+        if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
+            model_path = f"runs/{run_name}/kl_div/{args.exp_name}_{iteration}.cleanrl_model"
+            torch.save(agent.state_dict(), model_path)
+            print(f"model saved to {model_path}")
 
+            with open(history_path, 'wb') as handle:
+                pickle.dump(history, handle)
     envs.close()
     writer.close()

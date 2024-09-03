@@ -24,11 +24,12 @@ class FindMilk(gym.Env):
         "render_fps": 4,
     }
 
-    def __init__(self, width=8, validate=True, render_mode: Optional[str] = None):
+    def __init__(self, width=8, validate=True, heuristic =False, render_mode: Optional[str] = None):
         self.map = get_map(width, width)
         self.render_mode = "ansi"
         self.width = width
         self.validate = validate
+        self.heuristic = heuristic
         self.lasPos = {0,0}
         self.lastAction = 0
         # Original positions
@@ -160,6 +161,21 @@ class FindMilk(gym.Env):
         elif action == 2: x -= 1 # left
         elif action == 3: x += 1 # right
         return self.clip(x), self.clip(y)
+    
+    def heuristicReward(self,next_agent_pos,state):
+        reward = 0
+        babies_state = state[4:]
+        crying_baby_pos = babies_state[:2]
+        milk_pos = state[2:4]
+        dist_agent_milk = self.manhattan_distance(next_agent_pos,milk_pos)
+        #Based on human intuition. Human will give high probability to next agent position if it brings closer to the crying babies and not step on sleeping babies. 
+        if next_agent_pos in self.sleep_positions:
+            reward = -2
+        elif next_agent_pos in self.cry_positions:
+            reward = 0
+        else:
+            reward = -1
+        return reward
 
     def step(self, action):
         if action not in self.actions:
@@ -180,9 +196,12 @@ class FindMilk(gym.Env):
         truncated = False
         if new_pos == self.milk_pos:
             truncated = True
-
-        if truncated: reward = 20
+            
+        if self.heuristic==True:    
+            reward = self.heuristicReward(new_pos,self.state)        
         else: reward  = -1
+        
+        if truncated: reward = 20
 
         if self.render_mode == "human":
             self.render()
@@ -240,6 +259,10 @@ class FindMilk(gym.Env):
     def get_scenario_prompt(self):
         return self.scenario_prompt.format(num_cry=len(self.cry_pos), width=self.width,
                                            length=self.width)
+    def manhattan_distance(self,point1, point2):   
+        x1, y1 = point1
+        x2, y2 = point2
+        return abs(x1 - x2) + abs(y1 - y2)
 
 gym.register(
      id="FindMilk-v4",
