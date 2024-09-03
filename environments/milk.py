@@ -75,7 +75,7 @@ class FindMilk(gym.Env):
         # desc = self.desc.copy().tolist()
         outfile = StringIO()
         out = [[c.decode("utf-8") for c in line] for line in self.map.tolist()]
-        taxi_col, taxi_row = self.state[:2]
+        taxi_col, taxi_row = self.state.astype(int)[:2]
     
         for x, y in self.sleep_positions: # non-crying babies
             out[1 + 2*y][2 * x + 1] = utils.colorize("S", "green", bold=True)
@@ -105,6 +105,7 @@ class FindMilk(gym.Env):
     def find_closest_position(self, pos, baby_positions):
         if len(baby_positions)==0:
             return 0, 0
+        self.np_random.shuffle(baby_positions)
         diff = np.subtract(baby_positions, pos)
         closest_index = np.argmin(np.sum(diff**2, axis=1))
         return tuple(baby_positions[closest_index]) # return closest baby position
@@ -119,7 +120,7 @@ class FindMilk(gym.Env):
         #                             tuple(self.find_closest(pos, self.neg_pos)))
         self.state = pos + self.milk_pos + (tuple(self.find_closest_position(pos, self.cry_pos)) + 
                             tuple(self.find_closest_position(pos, self.sleep_pos)))
-        
+        self.state = np.array(self.state, dtype=np.float32)
         # self.state = pos + tuple([0 + (self.next_pos(pos, a) in self.pos_pos) 
         #                                     - (self.next_pos(pos, a) in self.neg_pos) for a in self.actions])
 
@@ -148,7 +149,7 @@ class FindMilk(gym.Env):
         self.cry_passed = 0
         self.hist_agent_pos = [pos]
 
-        return np.array(self.state), self.log()
+        return self.state, self.log()
 
     def clip(self, x):
         return min(max(x, 0), self.width-1)
@@ -188,7 +189,7 @@ class FindMilk(gym.Env):
 
         info = self.log()
 
-        return np.array(self.state), reward, truncated, False, info
+        return self.state, reward, truncated, False, info
 
     def log(self):
         return {'metric1': ('crying babies passed', self.cry_passed),
