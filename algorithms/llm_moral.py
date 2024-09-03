@@ -25,6 +25,7 @@ def create_llm_env(key, model_name='llama3', seed=42):
         base_url = 'http://10.249.72.3:8000/v1'
     else:
         base_url = None
+        # model_name = 'gpt-4o'
     model = ChatOpenAI(
         model=model_name,
         temperature=0,
@@ -275,7 +276,8 @@ You will make your decisions on complex scenarios following the above moral code
         ])
     return final_prompt
 
-def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt):        
+def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt):
+    error_flag = False
     question_text_all = []
     question_response_dict = {}
     i=0
@@ -306,6 +308,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
 
         if response.response_metadata['finish_reason']!='stop':
             print("LLM ran out of token. Missing response content. Possible infinite loop")
+            error_flag = True
         # Search for the pattern in the text
         # Use findall to get all matches
         matches = pattern.findall(response.content)
@@ -317,7 +320,7 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
             # Handle the case where no matches are found
             print("No matches found.")
             match = '{"0": 0.0, "1": 0.0, "2": 0.0}'
-    
+            error_flag = True
         try:
             beliefs = json.loads(match, object_pairs_hook=OrderedDict) # ensure dictionary does not reorder choices
         except json.decoder.JSONDecodeError:
@@ -327,6 +330,8 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
             beliefs = json.loads(match, object_pairs_hook=OrderedDict)
         except Exception as e:
             print(e, response.content)
+            error_flag = True
+
         # print(beliefs)
         # Fill missing values if LLM does not output beliefs for other actions
         for actionset in actionsets:
@@ -349,12 +354,13 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         if np.all(one_row==0):
             warnings.warn("Beliefs cannot be zero. Setting beliefs to be equal")
             one_row += 1./len(one_row)
+            error_flag = True
         if not np.isclose(sum_of_belief, 1):
             warnings.warn("The sum of beliefs outputted by LLM is not equal to 1. Proceeding to normalize values")
             one_row /= one_row.sum()
         # assert sum_of_belief>0, f"ERROR: beliefs cannot be zero. \n{response.content}"
         belief_dict[moral_agent] = one_row
-    return belief_dict, question_response_dict,total_token_usage
+    return belief_dict, question_response_dict, total_token_usage, error_flag
 
 
 
@@ -362,12 +368,13 @@ if __name__=="__main__":
     import gymnasium as gym
     import os
     import sys
+    import pickle
     from dempster_shafer import belief_to_reward
     sys.path.insert(1, os.path.join(os.path.dirname(__file__), '..'))
 
     # debugging examples
-    model_name = "mistral"
-    # model_name = "gpt-4o-mini"
+    # model_name = "mistral"
+    model_name = "gpt-4o-mini"
 
     # state = "You are the captain of a lifeboat that has a maximum capacity of 10 people, including yourself. Currently, there are 10 people on board, and the lifeboat is in a stable condition. However, you encounter another group of 5 people stranded in the water who will certainly drown. if not rescued. If you take all 5 additional people on board, the lifeboat will become overcrowded and there is a high risk it will capsize, potentially resulting in the death of everyone on board."
     # action = "Action A: Take all 5 additional people on board. \nAction B: Take as many people as you can safely accommodate, and leave the rest. \nAction C: Rotate rescuing people by keeping the boat at its capacity while trying to transfer some to nearby boats or signaling for help. \nAction D: Do not take any additional people on board and prioritize the safety of those already on the lifeboat."
@@ -382,14 +389,23 @@ if __name__=="__main__":
 # Action B: Going down brings you closer to 5 crying and 0 sleeping babies.
 # Action C: Going left brings you closer to 1 crying and 1 sleeping babies.
 # Action D: Going right brings you closer to 0 crying and 2 sleeping babies."""
+    run_name = "FindMilk-v4__ppo__1__moral"
+    history_path = f'runs/{run_name}/{model_name}_llm_cache.pickle'
+    history = {}
+    if os.path.isfile(history_path):
+        with open(history_path, 'rb') as handle:
+            history = pickle.load(handle)
 
     env = gym.make('environments.milk:FindMilk-v4', render_mode='ansi', validate=True)
     env.reset()
-    new_pos = (8,5)
-    new_pos = (4,5)
-    # env.unwrapped.milk_pos = (4,6)
+    new_pos = (2,4)
+    # new_pos = (5,6)
+    # new_pos = (2,0)
+
     env.generate_state(new_pos)
-    env.unwrapped.state[4:] = [5,6,5,5]
+    env.unwrapped.state[4:] = [4,4,3,3]
+    # env.unwrapped.state[4:] = [6,7,6,6]
+    # env.unwrapped.state[4:] = [2,2,1,1]
     actionsets = [frozenset([str(k)]) for k in env.action_mapper.keys()]
 
     scenario_prompt = env.get_scenario_prompt()
@@ -397,10 +413,24 @@ if __name__=="__main__":
 
     # credences = credences[[0,1],:]
     final_prompt = few_shot_prompt_training()
-    beliefs, question_response_dict, _ = call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt)
+    beliefs, question_response_dict, _, error_flag = call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences,model,final_prompt)
+    data = {moral_agent: belief for moral_agent, belief in beliefs.items()}
+
+    del beliefs['moral']
+    reward_dict = belief_to_reward(beliefs, actionsets)
+    data['rewards'] = reward_dict
+    if error_flag:
+        data['error'] = True
+        data['response'] = question_response_dict
+    history[tuple(env.unwrapped.state)] = data
+    
+
     print(env.render())
     print(list(question_response_dict.keys())[0])
     for q, r in question_response_dict.items():
         print(r)
-    reward_dict = belief_to_reward(beliefs, actionsets)
     print(reward_dict)
+
+    # so we dont waste tokens
+    with open(history_path, 'wb') as handle:
+        pickle.dump(history, handle)
