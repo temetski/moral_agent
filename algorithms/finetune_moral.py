@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import tyro
+from typing import Optional
 from dataclasses import dataclass
 from logger import Logger
 from torch.utils.tensorboard import SummaryWriter
@@ -18,8 +19,8 @@ from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training, credences, moral_agent_types
 from dempster_shafer import belief_to_reward
 
-# model_name = "mister"
-model_name = "gpt-4o-mini"
+model_name = "mistral-nemo"
+# model_name = "gpt-4o-mini"
 api_key = os.environ.get("OPENAI_API_KEY", "none")
 model = create_llm_env(api_key, model_name)
 final_prompt = few_shot_prompt_training()
@@ -51,8 +52,8 @@ class FineTuneArgs(Args):
     num_envs: int = 1
     update_epochs: int = 8
     anneal_lr: bool = False
-    load_model: str = f"models/{Args.env_id}__{Args.seed}/base.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
-    load_model_ref: str = None#"runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model"
+    load_model: Optional[str] = None #The Milk base model that gave us good result. KL factor of 2
+    load_model_ref: Optional[str] = None#"runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model"
     load_from: int = 0
     write_to_csv: bool = True
     use_kl: bool = True
@@ -67,6 +68,8 @@ if __name__ == "__main__":
     args.minibatch_size = int(args.batch_size // args.num_minibatches)
     args.num_iterations = args.total_timesteps // args.batch_size
     env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
+    if args.load_model is None:
+        args.load_model = f"models/{args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id}_{args.seed}/base.cleanrl_model"
     if args.load_model_ref is None:
         args.load_model_ref = args.load_model
     run_name = f"{env_id}_{args.seed}"
@@ -82,7 +85,7 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    save_folder = f"{run_name}{'/moral_llm' if args.use_kl else ''}/"
+    save_folder = f"{run_name}{f'/moral_llm_{model_name}' if args.use_kl else ''}/"
     writer = SummaryWriter(f"models/{save_folder}/", filename_suffix=model_name)
     writer.add_text(
         "hyperparameters",
@@ -322,7 +325,7 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            model_path = f"models/{run_name}{'/moral_llm' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
+            model_path = f"models/{run_name}{f'/moral_llm_{model_name}' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 
