@@ -15,7 +15,7 @@ def manhattan_distance(point1, point2):
     x2, y2 = point2
     return abs(x1 - x2) + abs(y1 - y2)
 
-env = gym.make("environments.milk:FindMilk-v4", render_mode='ansi', validate=True)
+env = gym.make("environments.milk:FindMilk-v4", render_mode='ansi', validate=True, seed=42)
 env = gym.wrappers.FlattenObservation(env)
 # Mimic SyncVectorEnv for cleanrl's PPO
 env.single_action_space = env.action_space
@@ -25,11 +25,11 @@ env.single_observation_space = env.observation_space
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 agent = Agent(env).to(device)
 
-state, _ = env.reset(seed=42)
 rewards = []
 trajectory = {}
 
-for cnt in range(100):
+for cnt in range(1000):
+    state, _ = env.reset()
     while True:
         babies_state = state[4:]
         agent_pos = state[:2]
@@ -61,9 +61,9 @@ for cnt in range(100):
         probs = [p/total for p in probs]
         
         #select action with max probabilities. In case more than one max value, choose by random
-        max_prob = np.max(probs)
-        max_indices = np.where(probs == max_prob)[0]
-        # action_1 = np.random.choice(max_indices) 
+        # max_prob = np.max(probs)
+        # max_indices = np.where(probs == max_prob)[0]
+        # # action_1 = np.random.choice(max_indices) 
         action = np.random.choice(4, 1, p=probs)[0]
         
         state_tuple = tuple(state)
@@ -79,6 +79,12 @@ for cnt in range(100):
         done = np.logical_or(terminations, truncations)
         if done:
             break
+
+    logdata = env.log()    
+    crying_babies, sleeping_babies = logdata['metric1'][1], logdata['metric2'][1]
+    if cnt % 10 == 0:
+        print(f'episode: {cnt}, total reward: {reward}, crying_babies: {crying_babies}, sleeping_babies: {sleeping_babies}')
+
 path = f"runs/human_policy/hpolicy_milk.pkl"
 with open(path, 'wb') as f:
     pickle.dump(trajectory, f, pickle.HIGHEST_PROTOCOL)
