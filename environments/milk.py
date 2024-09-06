@@ -24,7 +24,7 @@ class FindMilk(gym.Env):
         "render_fps": 4,
     }
 
-    def __init__(self, width=8, validate=True, heuristic =False, render_mode: Optional[str] = None):
+    def __init__(self, width=8, validate=True, heuristic =False, render_mode: Optional[str] = None, **kwargs):
         self.map = get_map(width, width)
         self.render_mode = "ansi"
         self.width = width

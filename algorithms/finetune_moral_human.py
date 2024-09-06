@@ -18,64 +18,26 @@ from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training
 from dempster_shafer import belief_to_reward
 
-NUM_MORAL = 5
-
-credences = np.zeros((5, NUM_MORAL))
-# Set the diagonal elements
-for i in range(NUM_MORAL):
-    credences[i, i] = 1
-    
-# model_name = "llama3"
-model_name = "gpt-4o-mini"
-api_key = os.environ.get("OPENAI_API_KEY_COSS", "none")
-model = create_llm_env(api_key,model_name)
-final_prompt = few_shot_prompt_training()
-agent_pos_update_t = [(4,5),(5,6)]
-agent_pos_update = [(2,3)]
-env_State_temp = [9.0, 6.0, 7.0, 7.0, 6.0, 7.0, 5.0, 5.0]
-    
-def log(logger,writer,question_response_dict,step,global_step,reward_dict,action,frame=None):   
-    if args.write_to_csv==False:
-        text = f"Step {step}\n"
-        i = 0
-        for key, value in question_response_dict.items():
-            text += f"-------Question Prompt with credence index - {i}-------\n {key}\n -------Response Prompt-------\n{value}\n--------------------------------------\n"
-            i+=1
-            
-        writer.add_text("LLM Prompts", f"\n{frame if frame is not None else ''}" + text, global_step)
-    else:
-        for key, value in question_response_dict.items():
-            logger.log(step=step, question=key, response=value, reward=reward_dict, action=action)
-
 
 kl_loss = nn.KLDivLoss(reduction="sum", log_target=True)
-
-def kl_div(p,q): 
-    # Convert inputs to numpy arrays
-    p = np.asarray(p, dtype=np.float32)
-    q = np.asarray(q, dtype=np.float32)
-    # Avoid division by zero and log(0) by adding a small value (epsilon)
-    epsilon = 1e-10
-    p = p+epsilon
-    q = q+epsilon
-    # divergence = np.sum(p*np.log(p/q))
-    divergence = (np.exp(p)* (p - q)).sum()
-    return divergence
     
 ## OVERRIDES
 @dataclass
 class FineTuneArgs(Args):
-    num_steps: int = 64 # note it is 64 for Milk
-    total_timesteps: int = 10000*num_steps
+    num_steps: int = 128 # note it is 64 for Milk
+    total_timesteps: int = 1000*num_steps
     num_envs: int = 1
-    update_epochs: int = 16
+    update_epochs: int = 8
     anneal_lr: bool = False
-    # load_model: str = "runs/Driving__ppo__1__1724832763/ppo.cleanrl_model"
-    load_model: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
-    load_model_ref: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model"
+    # load_model: str = "models/Driving_42/base.cleanrl_model"
+    load_model: str = "models/FindMilk-v4_42/base.cleanrl_model"
+    # load_model: str = "runs/FindMilk-v4__ppo__1__1724503897/ppo.cleanrl_model" #The Milk base model that gave us good result. KL factor of 2
+    load_model_ref: str = None#"runs/Driving__ppo__1__1724832763/ppo.cleanrl_model"
     load_from: int = 0
     write_to_csv: bool = True
+
 kwargs = {'validate': True,
+          'ishuman_p': False,
           'heuristic': False}
 
 if __name__ == "__main__":
@@ -87,7 +49,7 @@ if __name__ == "__main__":
     env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
     if args.load_model_ref is None:
         args.load_model_ref = args.load_model
-    run_name = f"{env_id}__{args.exp_name}__{args.seed}__moral"
+    run_name = f"{env_id}__{args.exp_name}__{args.seed}__RLHF"
     if args.track:
         import wandb
 
@@ -100,13 +62,12 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(f"runs/{run_name}/kl_div/", filename_suffix=model_name)
+    writer = SummaryWriter(f"runs/RLHF/", filename_suffix="drive")
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
     )
 
-    logger = Logger(f"runs/{run_name}/{model_name}_log.csv")
     # TRY NOT TO MODIFY: seeding
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -119,10 +80,9 @@ if __name__ == "__main__":
         [make_env(args.env_id, i, args.capture_video, run_name, **kwargs) for i in range(args.num_envs)],
     )
     assert isinstance(envs.single_action_space, gym.spaces.Discrete), "only discrete action space is supported"
-
     agent = Agent(envs).to(device)
     agent.load_state_dict(torch.load(args.load_model))
-    agent.critic = agent.reset_critic(envs) # why? 
+    agent.critic = agent.reset_critic(envs).to(device) # why? 
     #This is the reference model (frozen) fo KL divergence
     agent_ref = Agent(envs).to(device)
     agent_ref.load_state_dict(torch.load(args.load_model_ref)) 
@@ -144,33 +104,34 @@ if __name__ == "__main__":
     next_obs, _ = envs.reset(seed=args.seed)
     next_obs = torch.Tensor(next_obs).to(device)
     next_done = torch.zeros(args.num_envs).to(device)
-    total_token_usage = 0
-    history_path = f'runs/{run_name}/{model_name}_llm_cache.pickle'
-    history = {}
-    if os.path.isfile(history_path):
-        with open(history_path, 'rb') as handle:
-            history = pickle.load(handle)
+   
             
     #Load Human Policy 
     hpolicy = {}
-    actions = range(4)
-    with open('runs/human_policy/hpolicy_milk.pkl', 'rb') as f:
+    actions = range(envs.single_action_space.n)
+    env_tag = 'milk' if "FindMilk" in env_id else 'drive'
+    with open(f'runs/human_policy/hpolicy_{env_tag}.pkl', 'rb') as f:
         trajectory = pickle.load(f)
-    for key in trajectory:
-        if key[0] not in hpolicy:
+    for (ethical_state, a) in trajectory.keys():
+        if ethical_state not in hpolicy:
             probs = []
             count = []
             for action in actions:
                 try:
-                    count.append(trajectory[(key[0], action)])
+                    count.append(trajectory[(ethical_state, action)])
                 except:
                     count.append(0)
             total_cnt = sum(count)
-            # probs = [0.6**count[int(action.numpy())]*(1-0.6)**(total_cnt-count[int(action.numpy())]) for action in actions]
+            
+            if total_cnt > 20:
+                count = [p * 20 / total_cnt for p in count]
+            
+            total_cnt = sum(count)
             probs = [0.6**count[action]*(1-0.6)**(total_cnt-count[action]) for action in actions]
+            # print(probs)
             total_prob = sum(probs)
             probs = [p / total_prob for p in probs]
-            hpolicy[key[0]] = probs
+            hpolicy[ethical_state] = probs            
     
     actions = torch.zeros((args.num_steps, args.num_envs) + envs.single_action_space.shape).to(device)
     for iteration in range(args.load_from+1, args.load_from + args.num_iterations + 1):
@@ -180,6 +141,10 @@ if __name__ == "__main__":
             lrnow = frac * args.learning_rate
             optimizer.param_groups[0]["lr"] = lrnow
 
+        running_reward = []
+        running_logprobs = []
+        running_logprobs_ref = []
+        frac_hpolicy = 0
         for step in range(0, args.num_steps):
             global_step += args.num_envs
             obs[step] = next_obs
@@ -188,43 +153,45 @@ if __name__ == "__main__":
             # ALGO LOGIC: action logic
             with torch.no_grad():
                 action, logprob, _, value = agent.get_action_and_value(next_obs)
-                # _, logprob_ref, _, _ = agent_ref.get_action_and_value(next_obs, action=action)
+                _, logprob_ref, _, _ = agent_ref.get_action_and_value(next_obs, action=action)
                 values[step] = value.flatten()
-            
-            # print(non_score_reward)
+            actions[step] = action
+            logprobs[step] = logprob
+            running_logprobs.append(logprob)
+            running_logprobs_ref.append(logprob_ref)
+            kl_penalty_factor = 2.5 # 2 for Milk and 0.25 for Drive based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
+            with torch.no_grad(): # tensors all on CPU
+                lp_finetune = nn.functional.log_softmax(torch.Tensor(running_logprobs), dim=0)
+                lp_ref = nn.functional.log_softmax(torch.Tensor(running_logprobs_ref), dim=0)
+                kl = kl_loss(lp_finetune, lp_ref).detach().numpy()
+            writer.add_scalar(f"charts/kl_div", kl, global_step)
+            non_score_reward = -(kl_penalty_factor * kl)
             the_actions = action.cpu().numpy()
             # TRY NOT TO MODIFY: execute the game and log data.
             shaping_reward = []
+            if env_tag=='drive':
+                ethical_state = tuple(next_obs.flatten()[1:6:2].tolist())
+            else:
+                ethical_state = tuple(next_obs.flatten().tolist())
             for i in range(args.num_envs):
                 unwrapped_env = envs.envs[i].unwrapped
                 envstate = envs.observations[i] # the unwrapped env might not have a flat observation space
-                # envstate_Update = [2,3,7,7,4,4,3,3]                
-                curr_agent_pos = envstate[:2]
-                
-            next_obs, reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
-            key = tuple(next_obs.flatten())
-            if key in hpolicy:
-                hprobs = hpolicy[key]
-                actions[step] = action
-                logprobs[step] = logprob
-                logprobs_ref[step] =  np.log(hprobs[action])
-                # kl_penalty_factor = 2 # 2 for Milk and 0.25 for Drive based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
-                kl_penalty_factor = 2
-                with torch.no_grad():
-                    lp_finetune = nn.functional.log_softmax(logprobs[:step+1], dim=0)
-                    lp_ref = nn.functional.log_softmax(logprobs_ref[:step+1], dim=0)
-                    kl = kl_loss(lp_finetune,lp_ref).detach().numpy()
-                    # kl_rohit = kl_div(lp_ref,lp_finetune)                
-                    writer.add_scalar(f"charts/episodic_kl_divergence", kl, global_step)
-                print('kl divergence: ',kl)
-                non_score_reward = -(kl_penalty_factor * kl)
-        
-                reward = reward + non_score_reward
-           
-            # logText = f"{infos['metric1'][0]} {infos['metric1'][0]} {infos['metric5'][0]} Reward {reward} Kl: {kl}"
-            # print(logText)
-            
+                if ethical_state in hpolicy:
+                    hprobs = hpolicy[ethical_state]
+                    RLHF_reward = hprobs[action]
+                    frac_hpolicy += 1
+                else: RLHF_reward = 0
+            next_obs, env_reward, terminations, truncations, infos = envs.step(action.cpu().numpy())
             next_done = np.logical_or(terminations, truncations)
+            # reward += non_score_reward
+            # reward = 0
+            # if ethical_state in hpolicy:
+            reward = non_score_reward + RLHF_reward
+            if any(next_done): # only works for num_envs==1
+                # reward = non_score_reward + np.mean(running_reward)*any(terminations)
+                running_reward = []
+                running_logprobs = []
+                running_logprobs_ref = []
             rewards[step] = torch.tensor(reward).to(device).view(-1)
             next_obs, next_done = torch.Tensor(next_obs).to(device), torch.Tensor(next_done).to(device)
 
@@ -234,6 +201,7 @@ if __name__ == "__main__":
                         print(f"global_step={global_step}, episodic_return={info['episode']['r']}")
                         writer.add_scalar("charts/episodic_return", info["episode"]["r"], global_step)
                         writer.add_scalar("charts/episodic_length", info["episode"]["l"], global_step)
+                        writer.add_scalar("charts/finetune_return", reward, global_step)
                         writer.add_scalar(f"charts/episodic_{info['metric1'][0]}", info["metric1"][1], global_step)
                         writer.add_scalar(f"charts/episodic_{info['metric2'][0]}", info["metric2"][1], global_step)
 
@@ -331,14 +299,12 @@ if __name__ == "__main__":
         writer.add_scalar("losses/clipfrac", np.mean(clipfracs), global_step)
         writer.add_scalar("losses/explained_variance", explained_var, global_step)
         print("SPS:", int(global_step / (time.time() - start_time)))
+        print("frac hpolicy:", frac_hpolicy/args.num_steps)
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            model_path = f"runs/{run_name}/kl_div/{args.exp_name}_{iteration}.cleanrl_model"
+            model_path = f"runs/RLHF/{args.exp_name}_{iteration}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
-
-            with open(history_path, 'wb') as handle:
-                pickle.dump(history, handle)
     envs.close()
     writer.close()
