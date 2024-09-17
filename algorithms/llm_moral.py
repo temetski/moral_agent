@@ -324,8 +324,10 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         try:
             beliefs = json.loads(match, object_pairs_hook=OrderedDict) # ensure dictionary does not reorder choices
         except json.decoder.JSONDecodeError:
+            print(response.content)
             # perhaps missing quotes
             key_fix_pattern = r'([a-zA-Z0-9-.]+):[\s]([0-9-.]+)'
+            match = match.replace('"', '') # some malformed json have misplaced quotes
             match = regex.sub(key_fix_pattern, r'"\1": \2', match)
             beliefs = json.loads(match, object_pairs_hook=OrderedDict)
         except Exception as e:
