@@ -49,7 +49,7 @@ if __name__ == "__main__":
     env_id = args.env_id.split(':')[-1] if ':' in args.env_id else args.env_id
     if args.load_model_ref is None:
         args.load_model_ref = args.load_model
-    run_name = f"{env_id}__{args.exp_name}__{args.seed}__RLHF"
+    run_name = f"{env_id}_{args.seed}"
     if args.track:
         import wandb
 
@@ -62,7 +62,7 @@ if __name__ == "__main__":
             monitor_gym=True,
             save_code=True,
         )
-    writer = SummaryWriter(f"runs/RLHF/", filename_suffix="drive")
+    writer = SummaryWriter(f"models/{run_name}/RLHF/", filename_suffix="drive")
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
@@ -303,7 +303,7 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            model_path = f"runs/RLHF/{args.exp_name}_{iteration}.cleanrl_model"
+            model_path = f"models/{run_name}/RLHF/{args.exp_name}_{iteration}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
     envs.close()
