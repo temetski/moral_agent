@@ -1,6 +1,7 @@
 .DS_Store
 *runs
 
+.env
 # llm related ignores
 llm_venv
 *venv*
