@@ -19,11 +19,12 @@ from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training, credences, moral_agent_types
 from dempster_shafer import belief_to_reward
 
-model_name = "mistral-nemo"
-# model_name = "gpt-4o-mini"
+# model_name = "mistral-nemo"
+model_name = "gpt-4o-mini"
 api_key = os.environ.get("OPENAI_API_KEY", "none")
 model = create_llm_env(api_key, model_name)
 final_prompt = few_shot_prompt_training()
+
 # agent_pos_update_t = [(4,5),(5,6)]
 # agent_pos_update = [(2,3)]
 # env_State_temp = [9.0, 6.0, 7.0, 7.0, 6.0, 7.0, 5.0, 5.0]
@@ -58,6 +59,7 @@ class FineTuneArgs(Args):
     write_to_csv: bool = True
     use_kl: bool = True
     kl_penalty_factor: float = 2.5 # 2  based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
+    moral_cluster: str = 'consequentialist' # ['consequentialist', 'deontologist', 'virtue', 'care', 'social justice']
 
 kwargs = {'validate': True}
 
@@ -197,7 +199,12 @@ if __name__ == "__main__":
                     print(f"total token usage at step {global_step} = {total_token_usage}")
                 else:
                     reward_dict = history[tuple(envstate)]['rewards']
-                RLHF_reward = reward_dict[frozenset([str(the_actions[i])])]
+                if args.moral_cluster is not None:                    
+                    #access history to get individual access reward for actions. Build it in the fro
+                    temp = history[tuple(envstate)][args.moral_cluster]
+                    RLHF_reward = history[tuple(envstate)][args.moral_cluster][the_actions[i]]
+                else:
+                    RLHF_reward = reward_dict[frozenset([str(the_actions[i])])]
                 shaping_reward.append(RLHF_reward)
                 writer.add_text("Reward & Action", f"Step {step}\n{reward_dict}\n {action}\n", global_step=global_step)
                 # Cache state-action prompts to save processing time
@@ -325,7 +332,7 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            model_path = f"models/{run_name}{f'/moral_llm_{model_name}' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
+            model_path = f"models/{run_name}{f'/{args.moral_cluster}/moral_llm_{model_name}' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 
