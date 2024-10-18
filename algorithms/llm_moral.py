@@ -20,9 +20,9 @@ for i, ma in enumerate(moral_agent_types):
     credences[ma] = agent_cred
 credences['moral'] = None
 
-def create_llm_env(key, model_name='llama3', seed=42):  
+def create_llm_env(key, model_name='llama3', seed=42, base_url='http://10.249.72.3:8000/v1'):  
     if 'gpt' not in model_name:
-        base_url = 'http://10.249.72.3:8000/v1'
+        base_url = base_url
     else:
         base_url = None
         # model_name = 'gpt-4o'
@@ -314,8 +314,8 @@ def call_llm_with_state_action(scenario_prompt,actionsets,state,action,credences
         matches = pattern.findall(response.content)
         # Check if there are any matches
         if matches:
-            # Access the first match if it exists
-            match = matches[0]
+            # Access the last match if it exists (sometimes the model repeats the credences)
+            match = matches[-1]
         else:
             # Handle the case where no matches are found
             print("No matches found.")
