@@ -18,10 +18,12 @@ import time
 from ppo import Args, Agent, make_env
 from llm_moral import call_llm_with_state_action,create_llm_env,few_shot_prompt_training, credences, moral_agent_types
 from dempster_shafer import belief_to_reward
+from aggregationMethod import aggregate_belief_to_reward
 
 # model_name = "mistral-nemo"
 model_name = "gpt-4o-mini"
-api_key = os.environ.get("OPENAI_API_KEY", "none")
+api_key = os.environ.get("OPENAI_API_KEY_COSS", "none")
+print(api_key)
 model = create_llm_env(api_key, model_name)
 final_prompt = few_shot_prompt_training()
 
@@ -59,7 +61,8 @@ class FineTuneArgs(Args):
     write_to_csv: bool = True
     use_kl: bool = True
     kl_penalty_factor: float = 2.5 # 2  based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
-    moral_cluster: str = 'consequentialist' # ['consequentialist', 'deontologist', 'virtue', 'care', 'social justice']
+    moral_cluster: str = None # ['consequentialist', 'deontologist', 'virtue', 'care', 'social justice'] moral
+    aggregation_method: str = 'weight_average' #arg_max,voting,weight_average
 
 kwargs = {'validate': True}
 
@@ -115,7 +118,7 @@ if __name__ == "__main__":
     agent_ref = Agent(envs).to(device)
     agent_ref.load_state_dict(torch.load(args.load_model_ref)) 
 
-
+    print(args.moral_cluster)
     optimizer = optim.Adam(agent.parameters(), lr=args.learning_rate, eps=1e-5)
 
     # ALGO Logic: Storage setup
@@ -199,10 +202,15 @@ if __name__ == "__main__":
                     print(f"total token usage at step {global_step} = {total_token_usage}")
                 else:
                     reward_dict = history[tuple(envstate)]['rewards']
+                    
                 if args.moral_cluster is not None:                    
                     #access history to get individual access reward for actions. Build it in the fro
                     temp = history[tuple(envstate)][args.moral_cluster]
-                    RLHF_reward = history[tuple(envstate)][args.moral_cluster][the_actions[i]]
+                    RLHF_reward = history[tuple(envstate)][args.moral_cluster][the_actions[i]]  
+                elif args.aggregation_method is not None:
+                    temp = history[tuple(envstate)]
+                    reward_dict = aggregate_belief_to_reward(temp,args.aggregation_method)
+                    RLHF_reward = reward_dict[the_actions[i]]
                 else:
                     RLHF_reward = reward_dict[frozenset([str(the_actions[i])])]
                 shaping_reward.append(RLHF_reward)
@@ -332,7 +340,10 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            model_path = f"models/{run_name}{f'/{args.moral_cluster}/moral_llm_{model_name}' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
+            if args.moral_cluster is not None: 
+                model_path = f"models/{run_name}{f'/{args.moral_cluster}/moral_llm_{model_name}' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
+            elif args.aggregation_method is not None:
+                model_path = f"models/{run_name}{f'/{args.aggregation_method}/moral_llm_{model_name}' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 

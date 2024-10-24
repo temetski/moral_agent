@@ -35,8 +35,8 @@ def update_pickle_data_format(pickle_file1):
 
 if __name__=="__main__":
     # Example usage
-    # pickle_file1 = 'pickle1_llm_cache.pickle'
-    # pickle_file2 = 'pickle2_llm_cache.pickle'
-    # combine_pickles(pickle_file1, pickle_file2, 'combined_file.pickle')
-    update_pickle_data_format('PickleCacheAndBaseModels/Milk/gpt-4o-mini_llm_cache.pickle')
-    update_pickle_data_format('PickleCacheAndBaseModels/Drive/gpt-4o-mini_llm_cache.pickle')
+    pickle_file1 = 'PickleCacheAndBaseModels/Combined/Milk/gpt-4o-mini_llm_cache_1.pickle'
+    pickle_file2 = 'PickleCacheAndBaseModels/Combined/Milk/gpt-4o-mini_llm_cache_2.pickle'
+    combine_pickles(pickle_file1, pickle_file2, 'PickleCacheAndBaseModels/Combined/Milk/gpt-4o-mini_llm_cache_combined.pickle')
+    # update_pickle_data_format('PickleCacheAndBaseModels/Milk/gpt-4o-mini_llm_cache.pickle')
+    # update_pickle_data_format('PickleCacheAndBaseModels/Drive/gpt-4o-mini_llm_cache.pickle')
