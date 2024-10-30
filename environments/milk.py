@@ -146,6 +146,7 @@ class FindMilk(gym.Env):
         # x,y,xcry,ycry,xsleep,ysleep
         self.generate_state(pos)
 
+        self.steps_to_milk = 0
         self.sleep_passed = 0
         self.cry_passed = 0
         self.hist_agent_pos = [pos]
@@ -192,6 +193,8 @@ class FindMilk(gym.Env):
             self.cry_pos.remove(new_pos)
             self.cry_passed += 1
 
+        self.steps_to_milk += 1
+
         self.generate_state(new_pos)
         truncated = False
         if new_pos == self.milk_pos:
@@ -211,7 +214,8 @@ class FindMilk(gym.Env):
         return self.state, reward, truncated, False, info
 
     def log(self):
-        return {'metric1': ('crying babies passed', self.cry_passed),
+        return {'main_goal': ('steps to milk', self.steps_to_milk),
+                'metric1': ('crying babies passed', self.cry_passed),
                 'metric2': ('sleeping babies passed', self.sleep_passed),
                 'metric3': ('agent last position', self.lasPos),
                 'metric4': ('agent current position', self.state[:2]),

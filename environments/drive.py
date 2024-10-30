@@ -40,6 +40,7 @@ class Driving(gym.Env):
         self.timestamp = 0
         self.done = False
         self.num_collision = 0
+        self.lane_changes = 0
         self.num_hit_cat = 0
         self.cars = {}
         self.cats = {}
@@ -132,6 +133,7 @@ class Driving(gym.Env):
             reward = -20 * car_hit + 0.5 * (action == 0)
 
         self.num_collision += car_hit
+        self.lane_changes += action!=0
         self.num_hit_cat += cat_hit
         if self.timestamp >= self.sim_len:
             self.done = True
@@ -141,8 +143,9 @@ class Driving(gym.Env):
         return self.state, reward, self.done, 0, info
 
     def log(self):
-        return {'metric1': ('Number of car collisions', self.num_collision),
-                'metric2': ('Number of grandmas rescued',  self.num_hit_cat)}
+        return {'main_goal': ('car collisions', self.num_collision),
+                'metric1': ('lane changes', self.lane_changes),
+                'metric2': ('grandmas rescued',  self.num_hit_cat)}
     
     def action_as_text(self, action):
         return self.action_mapper[action]
