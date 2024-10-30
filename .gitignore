@@ -1,5 +1,7 @@
 .DS_Store
 *runs
+*.cleanrl_model
+events.out*
 
 .env
 # llm related ignores
