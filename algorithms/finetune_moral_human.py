@@ -169,10 +169,10 @@ if __name__ == "__main__":
             the_actions = action.cpu().numpy()
             # TRY NOT TO MODIFY: execute the game and log data.
             shaping_reward = []
-            if env_tag=='drive':
-                ethical_state = tuple(next_obs.flatten()[1:6:2].tolist())
-            else:
-                ethical_state = tuple(next_obs.flatten().tolist())
+            # if env_tag=='drive':
+            #     ethical_state = tuple(next_obs.flatten()[1:6:2].tolist())
+            # else:
+            ethical_state = tuple(next_obs.flatten().tolist())
             for i in range(args.num_envs):
                 unwrapped_env = envs.envs[i].unwrapped
                 envstate = envs.observations[i] # the unwrapped env might not have a flat observation space
