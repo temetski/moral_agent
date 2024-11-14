@@ -52,7 +52,8 @@ for cnt in range(10000):
         action = np.random.choice(actions, p=probs)
         # print(probs, state, action)
 
-        ethical_state = (state[1], state[3], state[5]) #state[2] is cat for center lane, state[4] cat for left lane, state[6] cat for right lane. This for old code. We revereted to match the one hot encoding
+        # ethical_state = (state[1], state[3], state[5]) #state[2] is cat for center lane, state[4] cat for left lane, state[6] cat for right lane. This for old code. We revereted to match the one hot encoding
+        ethical_state = tuple(state) 
         if cnt > 600: #after this number it begin to record trajectories
             try:
                 trajectory[(ethical_state, action)] += 1

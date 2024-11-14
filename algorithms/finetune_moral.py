@@ -22,9 +22,10 @@ from aggregationMethod import aggregate_belief_to_reward
 
 # model_name = "mistral-nemo"
 model_name = "gpt-4o-mini"
-api_key = os.environ.get("OPENAI_API_KEY_COSS", "none")
-print(api_key)
-model = create_llm_env(api_key, model_name)
+# model_name = "llama-3.1-70B"
+# model_name = "llama-3.1-8B"
+api_key = os.environ.get("OPENAI_API_KEY", "none")
+model = create_llm_env(api_key, model_name, base_url="http://localhost:8080/v1")
 final_prompt = few_shot_prompt_training()
 
 # agent_pos_update_t = [(4,5),(5,6)]
@@ -61,8 +62,8 @@ class FineTuneArgs(Args):
     write_to_csv: bool = True
     use_kl: bool = True
     kl_penalty_factor: float = 2.5 # 2  based on Moral paper https://github.com/kristery/EthicsShaping/blob/master/Drive/hsarsa_n.py
-    moral_cluster: str = None # ['consequentialist', 'deontologist', 'virtue', 'care', 'social justice'] moral
-    aggregation_method: str = 'weight_average' #arg_max,voting,weight_average
+    moral_cluster: Optional[str] = None # ['consequentialist', 'deontologist', 'virtue', 'care', 'social justice'] moral
+    aggregation_method: Optional[str] = None #arg_max,voting,weight_average
 
 kwargs = {'validate': True}
 
@@ -340,10 +341,12 @@ if __name__ == "__main__":
         writer.add_scalar("charts/SPS", int(global_step / (time.time() - start_time)), global_step)
 
         if args.save_model and (iteration%5==0 or iteration==args.num_iterations):
-            if args.moral_cluster is not None: 
-                model_path = f"models/{run_name}{f'/{args.moral_cluster}/moral_llm_{model_name}' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
-            elif args.aggregation_method is not None:
-                model_path = f"models/{run_name}{f'/{args.aggregation_method}/moral_llm_{model_name}' if args.use_kl else ''}/{args.exp_name}_{iteration}.cleanrl_model"
+            if args.aggregation_method is not None:
+                subfolder = args.aggregation_method
+            else:
+                subfolder = f'/{args.moral_cluster}' if args.moral_cluster is not None else ''
+            model_folder = f"models/{run_name}{subfolder}{f'/moral_llm_{model_name}' if args.use_kl else ''}"
+            model_path = f"{model_folder}/{args.exp_name}_{iteration}.cleanrl_model"
             torch.save(agent.state_dict(), model_path)
             print(f"model saved to {model_path}")
 
