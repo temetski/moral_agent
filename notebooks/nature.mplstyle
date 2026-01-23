@@ -23,6 +23,8 @@ mathtext.fontset : dejavusans
 
 # Set line widths
 axes.linewidth : 0.5
+xtick.major.width    : 0.5    # major tick width in points
+ytick.major.width    : 0.5    # major tick width in points
 grid.linewidth : 0.5
 lines.linewidth : 0.7
 lines.markersize: 3
